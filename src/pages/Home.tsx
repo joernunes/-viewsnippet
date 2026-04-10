@@ -188,7 +188,7 @@ export function Home() {
     />
   );
 
-  const previewContent = viewMode === "split" ? (
+  const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
     <div className="w-full h-full bg-white">
       <iframe
         srcDoc={code}

@@ -1,0 +1,5 @@
+{
+  "name": "CodeShare Viewer",
+  "description": "A responsive web application to paste, view, and share code snippets with syntax highlighting.",
+  "requestFramePermissions": []
+}

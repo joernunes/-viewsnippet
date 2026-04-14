@@ -98,7 +98,7 @@ export function Home() {
       setDescription(s.description || "");
       setTags(s.tags || "");
 
-      if (s.language === "html") {
+      if (s.language === "html" || s.language === "css") {
         setViewMode("split");
       } else {
         setViewMode("code");
@@ -189,11 +189,47 @@ export function Home() {
     />
   );
 
+  const getSrcDoc = () => {
+    if (language === "html") return code;
+    if (language === "css") {
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
+              ${code}
+            </style>
+          </head>
+          <body>
+            <div class="preview-container">
+              <h1>CSS Preview</h1>
+              <p>This is a sample paragraph to test your CSS styling in real-time.</p>
+              <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                <button style="padding: 0.5rem 1rem; cursor: pointer;">Button 1</button>
+                <button style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; rounded: 4px;">Button 2</button>
+              </div>
+              <div class="box" style="margin-top: 2rem; width: 100px; height: 100px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                Box
+              </div>
+              <ul style="margin-top: 1.5rem;">
+                <li>Item One</li>
+                <li>Item Two</li>
+                <li>Item Three</li>
+              </ul>
+            </div>
+          </body>
+        </html>
+      `;
+    }
+    return "";
+  };
+
   const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
     <div className="w-full h-full bg-white">
       <iframe
-        srcDoc={code}
-        title="HTML Preview"
+        srcDoc={getSrcDoc()}
+        title="Preview"
         className="w-full h-full border-none"
         sandbox="allow-scripts allow-modals allow-forms allow-popups"
       />
@@ -251,8 +287,8 @@ export function Home() {
             ></div>
           )}
           <iframe
-            srcDoc={code}
-            title="HTML Preview"
+            srcDoc={getSrcDoc()}
+            title="Preview"
             className={`w-full flex-1 bg-white border-none relative z-10 ${
               previewDevice === "iphone"
                 ? "rounded-[2.2rem]"
@@ -337,7 +373,7 @@ export function Home() {
           />
         </div>
         <div className="flex items-center gap-2 flex-wrap justify-center">
-          {language === "html" && (
+          {(language === "html" || language === "css") && (
             <div className="flex bg-zinc-800/80 p-1 rounded-xl mr-2">
               <Tooltip>
                 <TooltipTrigger

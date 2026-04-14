@@ -77,7 +77,7 @@ export function ViewSnippet() {
         });
       }
 
-      if (data.language === "html") {
+      if (data.language === "html" || data.language === "css") {
         setViewMode("split");
       }
     } catch (err: any) {
@@ -110,7 +110,7 @@ export function ViewSnippet() {
         timestamp: Date.now(),
       });
 
-      if (data.language === "html") {
+      if (data.language === "html" || data.language === "css") {
         setViewMode("split");
       }
     } catch (err: any) {
@@ -307,7 +307,7 @@ export function ViewSnippet() {
               <h1 className="text-lg font-bold text-zinc-100 tracking-tight line-clamp-1">
                 {snippet.title || "Untitled Snippet"}
               </h1>
-              {snippet.language === "html" && (
+              {(snippet.language === "html" || snippet.language === "css") && (
                 <div className="flex bg-zinc-800/80 p-0.5 rounded-xl sm:ml-2">
                   <Tooltip>
                     <TooltipTrigger
@@ -612,11 +612,47 @@ export function ViewSnippet() {
             </>
           );
 
+          const getSrcDoc = () => {
+            if (snippet.language === "html") return snippet.code;
+            if (snippet.language === "css") {
+              return `
+                <!DOCTYPE html>
+                <html>
+                  <head>
+                    <style>
+                      body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
+                      ${snippet.code}
+                    </style>
+                  </head>
+                  <body>
+                    <div class="preview-container">
+                      <h1>CSS Preview</h1>
+                      <p>This is a sample paragraph to test your CSS styling in real-time.</p>
+                      <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                        <button style="padding: 0.5rem 1rem; cursor: pointer;">Button 1</button>
+                        <button style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; rounded: 4px;">Button 2</button>
+                      </div>
+                      <div class="box" style="margin-top: 2rem; width: 100px; height: 100px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                        Box
+                      </div>
+                      <ul style="margin-top: 1.5rem;">
+                        <li>Item One</li>
+                        <li>Item Two</li>
+                        <li>Item Three</li>
+                      </ul>
+                    </div>
+                  </body>
+                </html>
+              `;
+            }
+            return "";
+          };
+
           const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
             <div className="w-full h-full bg-white">
               <iframe
-                srcDoc={snippet.code}
-                title="HTML Preview"
+                srcDoc={getSrcDoc()}
+                title="Preview"
                 className="w-full h-full border-none"
                 sandbox="allow-scripts allow-modals allow-forms allow-popups"
               />
@@ -674,8 +710,8 @@ export function ViewSnippet() {
                     ></div>
                   )}
                   <iframe
-                    srcDoc={snippet.code}
-                    title="HTML Preview"
+                    srcDoc={getSrcDoc()}
+                    title="Preview"
                     className={`w-full flex-1 bg-white border-none relative z-10 ${
                       previewDevice === "iphone"
                         ? "rounded-[2.2rem]"

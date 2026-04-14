@@ -62,11 +62,10 @@ export function ViewSnippet() {
   const fetchSnippet = async () => {
     try {
       const res = await fetch(`/api/snippets/${id}`);
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to fetch snippet");
       }
-      const data = await res.json();
       setSnippet(data);
 
       if (!data.isProtected) {
@@ -79,7 +78,7 @@ export function ViewSnippet() {
       }
 
       if (data.language === "html") {
-        setViewMode("preview");
+        setViewMode("split");
       }
     } catch (err: any) {
       setError(err.message);
@@ -98,12 +97,10 @@ export function ViewSnippet() {
         body: JSON.stringify({ password }),
       });
 
+      const data = await res.json();
       if (!res.ok) {
-        const data = await res.json();
         throw new Error(data.error || "Failed to unlock");
       }
-
-      const data = await res.json();
       setSnippet(data);
 
       saveRecentSnippet({
@@ -114,7 +111,7 @@ export function ViewSnippet() {
       });
 
       if (data.language === "html") {
-        setViewMode("preview");
+        setViewMode("split");
       }
     } catch (err: any) {
       setUnlockError(err.message);

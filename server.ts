@@ -3,7 +3,7 @@ import { createServer as createViteServer } from "vite";
 import path from "path";
 import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
-import bcrypt from "bcrypt";
+import bcrypt from "bcryptjs";
 
 const db = new Database("snippets.db");
 
@@ -56,12 +56,14 @@ async function startServer() {
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
       `);
 
+      console.log("Creating snippet with ID:", id);
       stmt.run(id, code, language, title, description, tags, visibility || 'public', passwordHash, expiresAt);
+      console.log("Snippet created successfully");
 
       res.json({ id });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error creating snippet:", error);
-      res.status(500).json({ error: "Failed to create snippet" });
+      res.status(500).json({ error: "Failed to create snippet: " + error.message });
     }
   });
 

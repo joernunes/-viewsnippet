@@ -79,7 +79,7 @@ export function Home() {
   const [password, setPassword] = useState("");
   const [expiresInDays, setExpiresInDays] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
-  const [viewMode, setViewMode] = useState<"code" | "preview" | "split">("code");
+  const [viewMode, setViewMode] = useState<"code" | "preview" | "split">("split");
   const [previewDevice, setPreviewDevice] = useState<
     "desktop" | "iphone" | "ipad"
   >("desktop");
@@ -99,7 +99,7 @@ export function Home() {
       setTags(s.tags || "");
 
       if (s.language === "html") {
-        setViewMode("preview");
+        setViewMode("split");
       } else {
         setViewMode("code");
       }
@@ -138,9 +138,10 @@ export function Home() {
         }),
       });
 
-      if (!response.ok) throw new Error("Failed to create snippet");
-
       const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error || "Failed to create snippet");
+      }
 
       // Save to local history
       saveRecentSnippet({

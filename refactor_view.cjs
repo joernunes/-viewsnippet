@@ -1,245 +1,29 @@
-import React, { useState, useEffect } from "react";
-import { useParams, Link, useNavigate } from "react-router-dom";
-import Editor from "@monaco-editor/react";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import {
-  Copy,
-  Check,
-  Lock,
-  Calendar,
-  Tag as TagIcon,
-  ZoomIn,
-  ZoomOut,
-  Code2,
-  Eye,
-  Columns,
-  GitFork,
-  Monitor,
-  Smartphone,
-  Tablet,
-  RotateCcw,
-  ChevronDown,
-  ChevronUp,
-  History,
-  Plus,
-  Download,
-} from "lucide-react";
-import { format } from "date-fns";
-import { saveRecentSnippet } from "../lib/history";
-import { toast } from "sonner";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "../components/ui/tooltip";
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
+const fs = require('fs');
 
-export function ViewSnippet() {
-  const { id } = useParams();
-  const navigate = useNavigate();
-  const [snippet, setSnippet] = useState<any>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [password, setPassword] = useState("");
-  const [unlockError, setUnlockError] = useState("");
-  const [copiedLink, setCopiedLink] = useState(false);
-  const [copiedCode, setCopiedCode] = useState(false);
-  const [fontSize, setFontSize] = useState(15);
-  const [viewMode, setViewMode] = useState<"code" | "preview" | "split">("code");
-  const [previewDevice, setPreviewDevice] = useState<
-    "desktop" | "iphone" | "ipad"
-  >("desktop");
-  const [previewOrientation, setPreviewOrientation] = useState<
-    "portrait" | "landscape"
-  >("portrait");
+function refactorView() {
+  const filePath = 'src/pages/ViewSnippet.tsx';
+  let content = fs.readFileSync(filePath, 'utf8');
 
-  useEffect(() => {
-    fetchSnippet();
-  }, [id]);
+  // Remove dock state
+  content = content.replace(/  const \[isDockVisible, setIsDockVisible\] = useState\(true\);\n/, '');
 
-  const fetchSnippet = async () => {
-    try {
-      const res = await fetch(`/api/snippets/${id}`);
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to fetch snippet");
-      }
-      setSnippet(data);
+  // Fix editor padding
+  content = content.replace(/padding: \{ top: 16, bottom: 16 \}/, 'padding: { top: 16, bottom: 16 }'); // already 16? No wait let me replace any padding config just in case.
+  content = content.replace(/padding: \{ top: 24, bottom: 120 \}/, 'padding: { top: 16, bottom: 16 }');
 
-      if (!data.isProtected) {
-        saveRecentSnippet({
-          id: data.id,
-          title: data.title || "Untitled Snippet",
-          language: data.language,
-          timestamp: Date.now(),
-        });
-      }
+  // Fix preview content pb-32
+  content = content.replace(/p-4 sm:p-8 pb-32/g, 'p-4 sm:p-8');
 
-      if (data.language === "html" || data.language === "css") {
-        setViewMode("split");
-      }
-    } catch (err: any) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+  // Extract the return block
+  const searchStart = '  return (\n    <div className="relative h-screen w-screen bg-[#1e1e1e] overflow-hidden">';
+  const returnIdx = content.indexOf(searchStart);
 
-  const handleUnlock = async (e: React.FormEvent) => {
-    e.preventDefault();
-    setUnlockError("");
-    try {
-      const res = await fetch(`/api/snippets/${id}/unlock`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ password }),
-      });
-
-      const data = await res.json();
-      if (!res.ok) {
-        throw new Error(data.error || "Failed to unlock");
-      }
-      setSnippet(data);
-
-      saveRecentSnippet({
-        id: data.id,
-        title: data.title || "Untitled Snippet",
-        language: data.language,
-        timestamp: Date.now(),
-      });
-
-      if (data.language === "html" || data.language === "css") {
-        setViewMode("split");
-      }
-    } catch (err: any) {
-      setUnlockError(err.message);
-    }
-  };
-
-  const copyLink = () => {
-    navigator.clipboard.writeText(window.location.href);
-    setCopiedLink(true);
-    toast.success("Link copied to clipboard!");
-    setTimeout(() => setCopiedLink(false), 2000);
-  };
-
-  const copyCode = () => {
-    if (snippet?.code) {
-      navigator.clipboard.writeText(snippet.code);
-      setCopiedCode(true);
-      toast.success("Code copied to clipboard!");
-      setTimeout(() => setCopiedCode(false), 2000);
-    }
-  };
-
-  const downloadCode = () => {
-    if (snippet?.code) {
-      const blob = new Blob([snippet.code], { type: "text/plain" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.href = url;
-
-      // Determine file extension based on language
-      const extMap: Record<string, string> = {
-        javascript: "js",
-        typescript: "ts",
-        python: "py",
-        html: "html",
-        css: "css",
-        json: "json",
-        sql: "sql",
-        java: "java",
-        csharp: "cs",
-        cpp: "cpp",
-        go: "go",
-        rust: "rs",
-        php: "php",
-        ruby: "rb",
-        shell: "sh",
-        markdown: "md",
-        plaintext: "txt",
-      };
-      const ext = extMap[snippet.language] || "txt";
-
-      a.download = `${snippet.title ? snippet.title.replace(/[^a-z0-9]/gi, "_").toLowerCase() : "snippet"}.${ext}`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
-      toast.success("File downloaded!");
-    }
-  };
-
-  const handleFork = () => {
-    navigate("/", { state: { forkedSnippet: snippet } });
-  };
-
-  if (loading) {
-    return (
-      <div className="flex justify-center items-center h-screen">
-        <div className="animate-pulse flex flex-col items-center gap-4">
-          <div className="w-12 h-12 bg-blue-600/20 rounded-xl flex items-center justify-center">
-            <Code2 size={24} className="text-blue-600" />
-          </div>
-          <div className="text-zinc-500 font-medium">Loading snippet...</div>
-        </div>
-      </div>
-    );
+  if (returnIdx === -1) {
+    console.error(`Return statement not found in ViewSnippet.tsx`);
+    return;
   }
 
-  if (error) {
-    return (
-      <div className="flex flex-col items-center justify-center h-screen gap-6">
-        <div className="w-16 h-16 bg-red-900/30 text-red-400 rounded-2xl flex items-center justify-center">
-          <Lock size={32} />
-        </div>
-        <div className="text-xl font-semibold text-zinc-200">{error}</div>
-        <Link to="/">
-          <Button className="rounded-xl h-11 px-8">Create New Snippet</Button>
-        </Link>
-      </div>
-    );
-  }
-
-  if (snippet?.isProtected) {
-    return (
-      <div className="flex items-center justify-center h-screen p-4">
-        <div className="w-full max-w-md bg-zinc-900/60 backdrop-blur-xl p-8 rounded-3xl border border-zinc-800/50 shadow-2xl text-center">
-          <div className="w-16 h-16 bg-blue-900/30 text-blue-400 rounded-2xl flex items-center justify-center mx-auto mb-6 shadow-inner">
-            <Lock size={32} />
-          </div>
-          <h2 className="text-2xl font-bold mb-2 text-zinc-100">
-            Protected Snippet
-          </h2>
-          <p className="text-zinc-400 mb-8">
-            This snippet requires a password to view.
-          </p>
-          <form onSubmit={handleUnlock} className="space-y-4">
-            <Input
-              type="password"
-              placeholder="Enter password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              className="h-12 rounded-xl text-center text-lg bg-zinc-900/50"
-              autoFocus
-            />
-            {unlockError && (
-              <p className="text-red-500 text-sm font-medium">{unlockError}</p>
-            )}
-            <Button
-              type="submit"
-              className="w-full h-12 rounded-xl text-md font-semibold shadow-md"
-            >
-              Unlock Snippet
-            </Button>
-          </form>
-        </div>
-      </div>
-    );
-  }
-
-  return (
+  const newReturnView = `  return (
     <div className="flex h-screen w-screen bg-[#1e1e1e] overflow-hidden">
       {/* Activity Bar (VS Code left sidebar style) */}
       <div className="w-14 shrink-0 bg-[#181818] border-r border-[#2b2b2b] flex flex-col items-center py-4 z-50">
@@ -564,13 +348,13 @@ export function ViewSnippet() {
             const getSrcDoc = () => {
               if (snippet.language === "html") return snippet.code;
               if (snippet.language === "css") {
-                return `
+                return \`
                   <!DOCTYPE html>
                   <html>
                     <head>
                       <style>
                         body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
-                        ${snippet.code}
+                        \${snippet.code}
                       </style>
                     </head>
                     <body>
@@ -592,7 +376,7 @@ export function ViewSnippet() {
                       </div>
                     </body>
                   </html>
-                `;
+                \`;
               }
               return "";
             };
@@ -610,10 +394,10 @@ export function ViewSnippet() {
               <div className="w-full h-full bg-zinc-950 overflow-auto">
                 <div className="min-w-full min-h-full flex flex-col items-center justify-center p-4 sm:p-8">
                   <div
-                    className={`transition-all duration-500 ease-in-out relative bg-zinc-900 shadow-2xl overflow-hidden flex flex-col ${
+                    className={\`transition-all duration-500 ease-in-out relative bg-zinc-900 shadow-2xl overflow-hidden flex flex-col \${
                       previewDevice === "desktop"
                         ? "w-full flex-1 rounded-xl border border-zinc-800 resize-x mx-auto min-w-[320px] max-w-full"
-                        : `flex-shrink-0 ring-1 ring-zinc-800 ${
+                        : \`flex-shrink-0 ring-1 ring-zinc-800 \${
                             previewDevice === "iphone"
                               ? previewOrientation === "landscape"
                                 ? "w-[852px] h-[393px] rounded-[3rem] border-[14px] border-zinc-900"
@@ -621,8 +405,8 @@ export function ViewSnippet() {
                               : previewOrientation === "landscape"
                                 ? "w-[1194px] h-[834px] rounded-[2rem] border-[16px] border-zinc-900"
                                 : "w-[834px] h-[1194px] rounded-[2rem] border-[16px] border-zinc-900"
-                          }`
-                    }`}
+                          }\`
+                    }\`}
                   >
                     {previewDevice === "desktop" && (
                       <div className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-4 shrink-0">
@@ -642,32 +426,32 @@ export function ViewSnippet() {
                     )}
                     {previewDevice === "iphone" && (
                       <div
-                        className={`absolute z-20 bg-black rounded-full pointer-events-none transition-all duration-500 ${
+                        className={\`absolute z-20 bg-black rounded-full pointer-events-none transition-all duration-500 \${
                           previewOrientation === "landscape"
                             ? "w-7 h-36 left-3 top-1/2 -translate-y-1/2"
                             : "w-36 h-7 top-3 left-1/2 -translate-x-1/2"
-                        }`}
+                        }\`}
                       ></div>
                     )}
                     {previewDevice === "ipad" && (
                       <div
-                        className={`absolute z-20 bg-black rounded-full w-2 h-2 pointer-events-none transition-all duration-500 ${
+                        className={\`absolute z-20 bg-black rounded-full w-2 h-2 pointer-events-none transition-all duration-500 \${
                           previewOrientation === "landscape"
                             ? "left-3 top-1/2 -translate-y-1/2"
                             : "top-3 left-1/2 -translate-x-1/2"
-                        }`}
+                        }\`}
                       ></div>
                     )}
                     <iframe
                       srcDoc={getSrcDoc()}
                       title="Preview"
-                      className={`w-full flex-1 bg-white border-none relative z-10 ${
+                      className={\`w-full flex-1 bg-white border-none relative z-10 \${
                         previewDevice === "iphone"
                           ? "rounded-[2.2rem]"
                           : previewDevice === "ipad"
                             ? "rounded-[1.2rem]"
                             : ""
-                      }`}
+                      }\`}
                       sandbox="allow-scripts allow-modals allow-forms allow-popups"
                     />
                   </div>
@@ -699,4 +483,11 @@ export function ViewSnippet() {
       </div>
     </div>
   );
+}`;
+
+  content = content.slice(0, returnIdx) + newReturnView + "\n";
+  fs.writeFileSync(filePath, content);
+  console.log('Refactored ViewSnippet.tsx');
 }
+
+refactorView();

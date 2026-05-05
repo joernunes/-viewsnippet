@@ -1,308 +1,22 @@
-import { useState, useEffect } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
-import Editor from "@monaco-editor/react";
-import { Button } from "../components/ui/button";
-import { Input } from "../components/ui/input";
-import { Label } from "../components/ui/label";
-import {
-  Settings,
-  Lock,
-  Globe,
-  EyeOff,
-  Share2,
-  Code2,
-  Eye,
-  Columns,
-  Monitor,
-  Smartphone,
-  Tablet,
-  RotateCcw,
-  ChevronDown,
-  ChevronUp,
-  History,
-  Plus,
-} from "lucide-react";
-import { saveRecentSnippet } from "../lib/history";
-import { toast } from "sonner";
-import {
-  Popover,
-  PopoverContent,
-  PopoverTrigger,
-} from "../components/ui/popover";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "../components/ui/tooltip";
+const fs = require('fs');
 
-import { Panel, Group as PanelGroup, Separator as PanelResizeHandle } from "react-resizable-panels";
+function refactorHome() {
+  const filePath = 'src/pages/Home.tsx';
+  let content = fs.readFileSync(filePath, 'utf8');
 
-const LANGUAGES = [
-  "javascript",
-  "typescript",
-  "python",
-  "html",
-  "css",
-  "json",
-  "sql",
-  "java",
-  "csharp",
-  "cpp",
-  "go",
-  "rust",
-  "php",
-  "ruby",
-  "shell",
-  "markdown",
-  "plaintext",
-];
+  content = content.replace(/  const \[isDockVisible, setIsDockVisible\] = useState\(true\);\n/, '');
+  content = content.replace(/padding: \{ top: 24, bottom: 120 \}/, 'padding: { top: 16, bottom: 16 }');
+  content = content.replace(/p-4 sm:p-8 pb-32/g, 'p-4 sm:p-8');
 
-export function Home() {
-  const location = useLocation();
-  const navigate = useNavigate();
+  const searchStart = '  return (\n    <div className="relative h-screen w-screen bg-[#1e1e1e] overflow-hidden">';
+  const returnIdx = content.indexOf(searchStart);
 
-  const [code, setCode] = useState(() => {
-    const saved = localStorage.getItem("snippet_draft_code");
-    return (
-      saved || "<!-- Paste your HTML code here -->\n<h1>Hello World</h1>\n"
-    );
-  });
-  const [language, setLanguage] = useState(() => {
-    return localStorage.getItem("snippet_draft_lang") || "html";
-  });
-  const [title, setTitle] = useState(() => {
-    return localStorage.getItem("snippet_draft_title") || "";
-  });
-  const [description, setDescription] = useState("");
-  const [tags, setTags] = useState("");
-  const [visibility, setVisibility] = useState("public");
-  const [password, setPassword] = useState("");
-  const [expiresInDays, setExpiresInDays] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
-  const [viewMode, setViewMode] = useState<"code" | "preview" | "split">("split");
-  const [previewDevice, setPreviewDevice] = useState<
-    "desktop" | "iphone" | "ipad"
-  >("desktop");
-  const [previewOrientation, setPreviewOrientation] = useState<
-    "portrait" | "landscape"
-  >("portrait");
+  if (returnIdx === -1) {
+    console.error(`Return statement not found in Home.tsx`);
+    return;
+  }
 
-  // Handle Forked Snippet Initialization
-  useEffect(() => {
-    if (location.state?.forkedSnippet) {
-      const s = location.state.forkedSnippet;
-      setCode(s.code || "");
-      setLanguage(s.language || "plaintext");
-      setTitle(s.title ? `${s.title} (Fork)` : "Forked Snippet");
-      setDescription(s.description || "");
-      setTags(s.tags || "");
-
-      if (s.language === "html" || s.language === "css") {
-        setViewMode("split");
-      } else {
-        setViewMode("code");
-      }
-
-      // Clear the state so it doesn't re-trigger on refresh
-      window.history.replaceState({}, document.title);
-    }
-  }, [location]);
-
-  // Auto-save draft
-  useEffect(() => {
-    if (!location.state?.forkedSnippet) {
-      localStorage.setItem("snippet_draft_code", code);
-      localStorage.setItem("snippet_draft_lang", language);
-      localStorage.setItem("snippet_draft_title", title);
-    }
-  }, [code, language, title, location.state]);
-
-  const handleSubmit = async () => {
-    if (!code.trim()) return;
-
-    setIsSubmitting(true);
-    try {
-      const response = await fetch("/api/snippets", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          code,
-          language,
-          title,
-          description,
-          tags,
-          visibility,
-          password: password || undefined,
-          expiresInDays: expiresInDays || undefined,
-        }),
-      });
-
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || "Failed to create snippet");
-      }
-
-      // Save to local history
-      saveRecentSnippet({
-        id: data.id,
-        title: title || "Untitled Snippet",
-        language: language,
-        timestamp: Date.now(),
-      });
-
-      // Clear draft after successful share
-      localStorage.removeItem("snippet_draft_code");
-      localStorage.removeItem("snippet_draft_lang");
-      localStorage.removeItem("snippet_draft_title");
-
-      toast.success("Snippet created successfully!");
-      navigate(`/s/${data.id}`);
-    } catch (error) {
-      console.error(error);
-      toast.error("Error creating snippet");
-    } finally {
-      setIsSubmitting(false);
-    }
-  };
-
-  const editorContent = (
-    <Editor
-      height="100%"
-      language={language}
-      theme="vs-dark"
-      value={code}
-      onChange={(value) => setCode(value || "")}
-      options={{
-        wordWrap: "on",
-        minimap: { enabled: false },
-        fontSize: 15,
-        fontFamily: "'JetBrains Mono', 'Fira Code', monospace",
-        fontLigatures: true,
-        padding: { top: 16, bottom: 16 },
-        scrollBeyondLastLine: false,
-        smoothScrolling: true,
-        cursorBlinking: "smooth",
-        lineHeight: 1.6,
-        renderLineHighlight: "all",
-      }}
-    />
-  );
-
-  const getSrcDoc = () => {
-    if (language === "html") return code;
-    if (language === "css") {
-      return `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <style>
-              body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
-              ${code}
-            </style>
-          </head>
-          <body>
-            <div class="preview-container">
-              <h1>CSS Preview</h1>
-              <p>This is a sample paragraph to test your CSS styling in real-time.</p>
-              <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                <button style="padding: 0.5rem 1rem; cursor: pointer;">Button 1</button>
-                <button style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; rounded: 4px;">Button 2</button>
-              </div>
-              <div class="box" style="margin-top: 2rem; width: 100px; height: 100px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
-                Box
-              </div>
-              <ul style="margin-top: 1.5rem;">
-                <li>Item One</li>
-                <li>Item Two</li>
-                <li>Item Three</li>
-              </ul>
-            </div>
-          </body>
-        </html>
-      `;
-    }
-    return "";
-  };
-
-  const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
-    <div className="w-full h-full bg-white">
-      <iframe
-        srcDoc={getSrcDoc()}
-        title="Preview"
-        className="w-full h-full border-none"
-        sandbox="allow-scripts allow-modals allow-forms allow-popups"
-      />
-    </div>
-  ) : (
-    <div className="w-full h-full bg-zinc-950 overflow-auto">
-      <div className="min-w-full min-h-full flex flex-col items-center justify-center p-4 sm:p-8">
-        <div
-          className={`transition-all duration-500 ease-in-out relative bg-zinc-900 shadow-2xl overflow-hidden flex flex-col ${
-            previewDevice === "desktop"
-              ? "w-full flex-1 rounded-xl border border-zinc-800 resize-x mx-auto min-w-[320px] max-w-full"
-              : `flex-shrink-0 ring-1 ring-zinc-800 ${
-                  previewDevice === "iphone"
-                    ? previewOrientation === "landscape"
-                      ? "w-[852px] h-[393px] rounded-[3rem] border-[14px] border-zinc-900"
-                      : "w-[393px] h-[852px] rounded-[3rem] border-[14px] border-zinc-900"
-                    : previewOrientation === "landscape"
-                      ? "w-[1194px] h-[834px] rounded-[2rem] border-[16px] border-zinc-900"
-                      : "w-[834px] h-[1194px] rounded-[2rem] border-[16px] border-zinc-900"
-                }`
-          }`}
-        >
-          {previewDevice === "desktop" && (
-            <div className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-4 shrink-0">
-              <div className="flex gap-2">
-                <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-                <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-              </div>
-              <div className="flex-1 flex justify-center">
-                <div className="bg-zinc-950 text-zinc-400 text-xs px-4 py-1.5 rounded-md flex items-center gap-2 border border-zinc-800 w-full max-w-md justify-center shadow-inner">
-                  <Lock size={12} className="text-zinc-500" />
-                  <span>preview.localhost</span>
-                </div>
-              </div>
-              <div className="w-12"></div>
-            </div>
-          )}
-          {previewDevice === "iphone" && (
-            <div
-              className={`absolute z-20 bg-black rounded-full pointer-events-none transition-all duration-500 ${
-                previewOrientation === "landscape"
-                  ? "w-7 h-36 left-3 top-1/2 -translate-y-1/2"
-                  : "w-36 h-7 top-3 left-1/2 -translate-x-1/2"
-              }`}
-            ></div>
-          )}
-          {previewDevice === "ipad" && (
-            <div
-              className={`absolute z-20 bg-black rounded-full w-2 h-2 pointer-events-none transition-all duration-500 ${
-                previewOrientation === "landscape"
-                  ? "left-3 top-1/2 -translate-y-1/2"
-                  : "top-3 left-1/2 -translate-x-1/2"
-              }`}
-            ></div>
-          )}
-          <iframe
-            srcDoc={getSrcDoc()}
-            title="Preview"
-            className={`w-full flex-1 bg-white border-none relative z-10 ${
-              previewDevice === "iphone"
-                ? "rounded-[2.2rem]"
-                : previewDevice === "ipad"
-                  ? "rounded-[1.2rem]"
-                  : ""
-            }`}
-            sandbox="allow-scripts allow-modals allow-forms allow-popups"
-          />
-        </div>
-      </div>
-    </div>
-  );
-
-  return (
+  const newReturnHome = `  return (
     <div className="flex h-screen w-screen bg-[#1e1e1e] overflow-hidden">
       {/* Activity Bar (VS Code left sidebar style) */}
       <div className="w-14 shrink-0 bg-[#181818] border-r border-[#2b2b2b] flex flex-col items-center py-4 z-50">
@@ -635,4 +349,11 @@ export function Home() {
       </div>
     </div>
   );
+}`;
+
+  content = content.slice(0, returnIdx) + newReturnHome + "\n";
+  fs.writeFileSync(filePath, content);
+  console.log('Refactored Home.tsx');
 }
+
+refactorHome();

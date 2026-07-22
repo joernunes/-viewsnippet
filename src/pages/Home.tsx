@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useNavigate, useLocation } from "react-router-dom";
 import Editor from "@monaco-editor/react";
 import { Button } from "../components/ui/button";
@@ -21,7 +21,16 @@ import {
   ChevronUp,
   History,
   Plus,
+  MousePointer,
+  Keyboard,
+  PanelLeft,
+  PanelRight,
+  Terminal,
 } from "lucide-react";
+import { ElementInspector, INSPECTOR_INJECT_SCRIPT } from "../components/ElementInspector";
+import { DevToolsSuite, DEVTOOLS_INJECT_SCRIPT } from "../components/DevToolsSuite";
+import { CodeDXSuite } from "../components/CodeDXSuite";
+import { ShortcutsModal } from "../components/ShortcutsModal";
 import { saveRecentSnippet } from "../lib/history";
 import { toast } from "sonner";
 import {
@@ -80,12 +89,29 @@ export function Home() {
   const [expiresInDays, setExpiresInDays] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [viewMode, setViewMode] = useState<"code" | "preview" | "split">("split");
+  const [splitLayout, setSplitLayout] = useState<"left" | "right">("left");
   const [previewDevice, setPreviewDevice] = useState<
     "desktop" | "iphone" | "ipad"
   >("desktop");
   const [previewOrientation, setPreviewOrientation] = useState<
     "portrait" | "landscape"
   >("portrait");
+  const [isInspectMode, setIsInspectMode] = useState(false);
+  const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
+  const [showShortcuts, setShowShortcuts] = useState(false);
+  const iframeRef = useRef<HTMLIFrameElement>(null);
+  const monacoEditorRef = useRef<any>(null);
+
+  useEffect(() => {
+    const handleGlobalKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
+        e.preventDefault();
+        setShowShortcuts((prev) => !prev);
+      }
+    };
+    window.addEventListener("keydown", handleGlobalKey);
+    return () => window.removeEventListener("keydown", handleGlobalKey);
+  }, []);
 
   // Handle Forked Snippet Initialization
   useEffect(() => {
@@ -172,6 +198,9 @@ export function Home() {
       theme="vs-dark"
       value={code}
       onChange={(value) => setCode(value || "")}
+      onMount={(editor) => {
+        monacoEditorRef.current = editor;
+      }}
       options={{
         wordWrap: "on",
         minimap: { enabled: false },
@@ -189,7 +218,13 @@ export function Home() {
   );
 
   const getSrcDoc = () => {
-    if (language === "html") return code;
+    const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}`;
+    if (language === "html") {
+      if (code.includes("</body>")) {
+        return code.replace("</body>", `${combinedScript}\n</body>`);
+      }
+      return `${code}\n${combinedScript}`;
+    }
     if (language === "css") {
       return `
         <!DOCTYPE html>
@@ -217,6 +252,7 @@ export function Home() {
                 <li>Item Three</li>
               </ul>
             </div>
+            ${combinedScript}
           </body>
         </html>
       `;
@@ -225,17 +261,29 @@ export function Home() {
   };
 
   const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
-    <div className="w-full h-full bg-white">
-      <iframe
-        srcDoc={getSrcDoc()}
-        title="Preview"
-        className="w-full h-full border-none"
-        sandbox="allow-scripts allow-modals allow-forms allow-popups"
-      />
+    <div className="w-full h-full flex flex-col bg-white overflow-hidden relative">
+      <div className="flex-1 relative bg-white overflow-hidden">
+        <iframe
+          ref={iframeRef}
+          srcDoc={getSrcDoc()}
+          title="Preview"
+          className="w-full h-full border-none"
+          sandbox="allow-scripts allow-modals allow-forms allow-popups"
+        />
+      </div>
+      {(language === "html" || language === "css") && (
+        <ElementInspector
+          iframeRef={iframeRef}
+          code={code}
+          onCodeChange={setCode}
+          isInspectMode={isInspectMode}
+          setIsInspectMode={setIsInspectMode}
+        />
+      )}
     </div>
   ) : (
-    <div className="w-full h-full bg-zinc-950 overflow-auto">
-      <div className="min-w-full min-h-full flex flex-col items-center justify-center p-4 sm:p-8">
+    <div className="w-full h-full bg-zinc-950 overflow-auto flex flex-col">
+      <div className="min-w-full flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
         <div
           className={`transition-all duration-500 ease-in-out relative bg-zinc-900 shadow-2xl overflow-hidden flex flex-col ${
             previewDevice === "desktop"
@@ -286,6 +334,7 @@ export function Home() {
             ></div>
           )}
           <iframe
+            ref={iframeRef}
             srcDoc={getSrcDoc()}
             title="Preview"
             className={`w-full flex-1 bg-white border-none relative z-10 ${
@@ -299,143 +348,20 @@ export function Home() {
           />
         </div>
       </div>
+      {(language === "html" || language === "css") && (
+        <ElementInspector
+          iframeRef={iframeRef}
+          code={code}
+          onCodeChange={setCode}
+          isInspectMode={isInspectMode}
+          setIsInspectMode={setIsInspectMode}
+        />
+      )}
     </div>
   );
 
   return (
     <div className="flex h-screen w-screen bg-[#1e1e1e] overflow-hidden">
-      {/* Activity Bar (VS Code left sidebar style) */}
-      <div className="w-14 shrink-0 bg-[#181818] border-r border-[#2b2b2b] flex flex-col items-center py-4 z-50">
-        <div className="flex-1 flex flex-col items-center gap-4">
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
-                  onClick={() => (window.location.href = "/")}
-                >
-                  <Plus size={20} />
-                </Button>
-              }
-            />
-            <TooltipContent side="right">New Snippet</TooltipContent>
-          </Tooltip>
-
-          <Tooltip>
-            <TooltipTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
-                  onClick={() => window.dispatchEvent(new CustomEvent("open_history"))}
-                >
-                  <History size={20} />
-                </Button>
-              }
-            />
-            <TooltipContent side="right">History</TooltipContent>
-          </Tooltip>
-        </div>
-
-        <div className="flex flex-col items-center gap-4">
-          <Popover>
-            <PopoverTrigger
-              render={
-                <Button
-                  variant="ghost"
-                  size="icon"
-                  className="h-10 w-10 rounded-xl text-zinc-400 hover:text-zinc-100 hover:bg-zinc-800/50"
-                >
-                  <Settings size={20} />
-                </Button>
-              }
-            />
-            <PopoverContent
-              className="w-80 sm:w-96 p-6 bg-zinc-900/95 backdrop-blur-xl border-zinc-800/50 rounded-2xl shadow-2xl mb-4 ml-4"
-              side="right"
-              align="end"
-            >
-              <div className="grid gap-6">
-                <div className="space-y-2">
-                  <Label htmlFor="description" className="text-zinc-400">
-                    Description
-                  </Label>
-                  <Input
-                    id="description"
-                    placeholder="Brief description..."
-                    value={description}
-                    onChange={(e) => setDescription(e.target.value)}
-                    className="bg-zinc-900/50 rounded-xl"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="tags" className="text-zinc-400">
-                    Tags
-                  </Label>
-                  <Input
-                    id="tags"
-                    placeholder="react, node, sql..."
-                    value={tags}
-                    onChange={(e) => setTags(e.target.value)}
-                    className="bg-zinc-900/50 rounded-xl"
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label className="text-zinc-400">Visibility</Label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      type="button"
-                      variant={visibility === "public" ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => setVisibility("public")}
-                      className="w-full justify-center rounded-xl h-10"
-                    >
-                      <Globe size={14} className="mr-2" /> Public
-                    </Button>
-                    <Button
-                      type="button"
-                      variant={
-                        visibility === "unlisted" ? "default" : "outline"
-                      }
-                      size="sm"
-                      onClick={() => setVisibility("unlisted")}
-                      className="w-full justify-center rounded-xl h-10"
-                    >
-                      <EyeOff size={14} className="mr-2" /> Unlisted
-                    </Button>
-                  </div>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="password" className="text-zinc-400">
-                    Password Protection
-                  </Label>
-                  <div className="relative">
-                    <Lock
-                      size={14}
-                      className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500"
-                    />
-                    <Input
-                      id="password"
-                      type="password"
-                      placeholder="Optional password"
-                      className="pl-9 bg-zinc-900/50 rounded-xl"
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                    />
-                  </div>
-                </div>
-              </div>
-            </PopoverContent>
-          </Popover>
-        </div>
-      </div>
-
       {/* Main Content Area */}
       <div className="flex-1 flex flex-col min-w-0 h-full">
         {/* Top Bar */}
@@ -453,6 +379,23 @@ export function Home() {
 
           {/* Actions & Toggles */}
           <div className="flex items-center gap-3">
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 px-2.5 rounded-md text-xs gap-1.5 bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800"
+                    onClick={() => setShowShortcuts(true)}
+                  >
+                    <Keyboard size={13} className="text-emerald-400" />
+                    <span className="hidden sm:inline">Shortcuts</span>
+                  </Button>
+                }
+              />
+              <TooltipContent>Keyboard Hotkeys & DevTools Commands (Cmd+K)</TooltipContent>
+            </Tooltip>
+
             <select
               value={language}
               onChange={(e) => {
@@ -469,51 +412,153 @@ export function Home() {
             </select>
 
             {(language === "html" || language === "css") && (
-              <div className="flex bg-zinc-900 rounded-md p-0.5 border border-zinc-800">
+              <div className="flex items-center gap-2">
+                <div className="flex bg-zinc-900 rounded-md p-0.5 border border-zinc-800">
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant={viewMode === "code" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-7 rounded opacity-80 hover:opacity-100 flex items-center justify-center w-8 px-0"
+                          onClick={() => setViewMode("code")}
+                        >
+                          <Code2 size={13} />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Code View</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant={viewMode === "split" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-7 rounded opacity-80 hover:opacity-100 flex items-center justify-center w-8 px-0"
+                          onClick={() => setViewMode("split")}
+                        >
+                          <Columns size={13} />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Split View</TooltipContent>
+                  </Tooltip>
+                  <Tooltip>
+                    <TooltipTrigger
+                      render={
+                        <Button
+                          variant={viewMode === "preview" ? "secondary" : "ghost"}
+                          size="sm"
+                          className="h-7 rounded opacity-80 hover:opacity-100 flex items-center justify-center w-8 px-0"
+                          onClick={() => setViewMode("preview")}
+                        >
+                          <Eye size={13} />
+                        </Button>
+                      }
+                    />
+                    <TooltipContent>Live Preview</TooltipContent>
+                  </Tooltip>
+                </div>
+
+                {viewMode === "split" && (
+                  <div className="flex bg-zinc-900/90 rounded-md p-0.5 border border-zinc-800/80 items-center animate-in fade-in duration-200">
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant={splitLayout === "left" ? "secondary" : "ghost"}
+                            size="sm"
+                            className={`h-7 px-2 rounded-md text-xs gap-1 transition-all ${
+                              splitLayout === "left"
+                                ? "bg-zinc-800 text-emerald-400 font-medium shadow-sm"
+                                : "text-zinc-400 hover:text-white"
+                            }`}
+                            onClick={() => setSplitLayout("left")}
+                          >
+                            <PanelLeft size={13} />
+                            <span className="text-[11px] hidden lg:inline">Left</span>
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Code Left / Preview Right</TooltipContent>
+                    </Tooltip>
+
+                    <Tooltip>
+                      <TooltipTrigger
+                        render={
+                          <Button
+                            variant={splitLayout === "right" ? "secondary" : "ghost"}
+                            size="sm"
+                            className={`h-7 px-2 rounded-md text-xs gap-1 transition-all ${
+                              splitLayout === "right"
+                                ? "bg-zinc-800 text-emerald-400 font-medium shadow-sm"
+                                : "text-zinc-400 hover:text-white"
+                            }`}
+                            onClick={() => setSplitLayout("right")}
+                          >
+                            <PanelRight size={13} />
+                            <span className="text-[11px] hidden lg:inline">Right</span>
+                          </Button>
+                        }
+                      />
+                      <TooltipContent>Preview Left / Code Right</TooltipContent>
+                    </Tooltip>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* DX Suite: Format, Snippets, AI Refactor, Diff */}
+            <CodeDXSuite
+              code={code}
+              language={language}
+              onCodeChange={setCode}
+              monacoEditorRef={monacoEditorRef}
+            />
+
+            {(language === "html" || language === "css") && (
+              <div className="flex items-center gap-1.5">
                 <Tooltip>
                   <TooltipTrigger
                     render={
                       <Button
-                        variant={viewMode === "code" ? "secondary" : "ghost"}
+                        variant={isInspectMode ? "default" : "outline"}
                         size="sm"
-                        className="h-7 rounded opacity-80 hover:opacity-100 flex items-center justify-center w-8 px-0"
-                        onClick={() => setViewMode("code")}
+                        className={`h-8 px-3 rounded-md text-xs gap-1.5 font-medium transition-all ${
+                          isInspectMode
+                            ? "bg-emerald-600 hover:bg-emerald-500 text-white shadow-sm border-emerald-500"
+                            : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800"
+                        }`}
+                        onClick={() => setIsInspectMode(!isInspectMode)}
                       >
-                        <Code2 size={13} />
+                        <MousePointer size={13} className={isInspectMode ? "animate-pulse" : ""} />
+                        <span>{isInspectMode ? "Inspecting" : "Inspect Elements"}</span>
                       </Button>
                     }
                   />
-                  <TooltipContent>Code View</TooltipContent>
+                  <TooltipContent>Toggle Element Inspector & DOM Editor</TooltipContent>
                 </Tooltip>
+
                 <Tooltip>
                   <TooltipTrigger
                     render={
                       <Button
-                        variant={viewMode === "split" ? "secondary" : "ghost"}
+                        variant={isDevToolsOpen ? "secondary" : "outline"}
                         size="sm"
-                        className="h-7 rounded opacity-80 hover:opacity-100 flex items-center justify-center w-8 px-0"
-                        onClick={() => setViewMode("split")}
+                        className={`h-8 px-3 rounded-md text-xs gap-1.5 font-medium transition-all ${
+                          isDevToolsOpen
+                            ? "bg-zinc-800 text-emerald-400 border border-emerald-500/40 shadow-sm"
+                            : "bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white hover:bg-zinc-800"
+                        }`}
+                        onClick={() => setIsDevToolsOpen(!isDevToolsOpen)}
                       >
-                        <Columns size={13} />
+                        <Terminal size={13} className="text-emerald-400" />
+                        <span>DevTools</span>
                       </Button>
                     }
                   />
-                  <TooltipContent>Split View</TooltipContent>
-                </Tooltip>
-                <Tooltip>
-                  <TooltipTrigger
-                    render={
-                      <Button
-                        variant={viewMode === "preview" ? "secondary" : "ghost"}
-                        size="sm"
-                        className="h-7 rounded opacity-80 hover:opacity-100 flex items-center justify-center w-8 px-0"
-                        onClick={() => setViewMode("preview")}
-                      >
-                        <Eye size={13} />
-                      </Button>
-                    }
-                  />
-                  <TooltipContent>Live Preview</TooltipContent>
+                  <TooltipContent>Open Integrated DevTools Suite (Console, Network, Audits, Storage)</TooltipContent>
                 </Tooltip>
               </div>
             )}
@@ -613,16 +658,36 @@ export function Home() {
         {/* Editor / Preview */}
         <div className="flex-1 relative overflow-hidden">
           {viewMode === "split" ? (
-            <PanelGroup direction="horizontal" className="w-full h-full">
-              <Panel defaultSize={50} minSize={20}>
-                {editorContent}
-              </Panel>
-              <PanelResizeHandle className="w-1 bg-[#2b2b2b] hover:bg-blue-500 transition-colors cursor-col-resize z-50 flex items-center justify-center">
-                <div className="w-0.5 h-8 bg-zinc-600 rounded-full" />
-              </PanelResizeHandle>
-              <Panel defaultSize={50} minSize={20} className="bg-zinc-950">
-                {previewContent}
-              </Panel>
+            <PanelGroup
+              key={splitLayout}
+              direction="horizontal"
+              className="w-full h-full"
+            >
+              {splitLayout === "left" ? (
+                <>
+                  <Panel defaultSize={50} minSize={15} className="relative">
+                    {editorContent}
+                  </Panel>
+                  <PanelResizeHandle className="w-1 cursor-col-resize bg-zinc-800/80 hover:bg-emerald-500 transition-colors z-50 flex items-center justify-center">
+                    <div className="w-0.5 h-8 bg-zinc-600 rounded-full" />
+                  </PanelResizeHandle>
+                  <Panel defaultSize={50} minSize={15} className="bg-zinc-950">
+                    {previewContent}
+                  </Panel>
+                </>
+              ) : (
+                <>
+                  <Panel defaultSize={50} minSize={15} className="bg-zinc-950">
+                    {previewContent}
+                  </Panel>
+                  <PanelResizeHandle className="w-1 cursor-col-resize bg-zinc-800/80 hover:bg-emerald-500 transition-colors z-50 flex items-center justify-center">
+                    <div className="w-0.5 h-8 bg-zinc-600 rounded-full" />
+                  </PanelResizeHandle>
+                  <Panel defaultSize={50} minSize={15} className="relative">
+                    {editorContent}
+                  </Panel>
+                </>
+              )}
             </PanelGroup>
           ) : viewMode === "code" ? (
             editorContent
@@ -633,6 +698,16 @@ export function Home() {
           )}
         </div>
       </div>
+      <DevToolsSuite
+        iframeRef={iframeRef}
+        code={code}
+        onCodeChange={setCode}
+        isOpen={isDevToolsOpen}
+        onClose={() => setIsDevToolsOpen(false)}
+        isInspectMode={isInspectMode}
+        setIsInspectMode={setIsInspectMode}
+      />
+      <ShortcutsModal isOpen={showShortcuts} onClose={() => setShowShortcuts(false)} />
     </div>
   );
 }

@@ -23,6 +23,8 @@ import {
   Plus,
   MousePointer,
   Keyboard,
+  Undo2,
+  Redo2,
   PanelLeft,
   PanelRight,
   Terminal,
@@ -102,16 +104,184 @@ export function Home() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const monacoEditorRef = useRef<any>(null);
 
+  // Undo / Redo History State
+  const [past, setPast] = useState<string[]>([]);
+  const [future, setFuture] = useState<string[]>([]);
+  const lastRecordedCodeRef = useRef<string>(code);
+  const historyTimerRef = useRef<any>(null);
+
+  // Skip iframe reload ref for live inspector updates
+  const skipIframeReloadRef = useRef<boolean>(false);
+
+  // Helper to generate iframe srcDoc
+  const getSrcDoc = (targetCode = code, targetLang = language) => {
+    const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}`;
+    if (targetLang === "html") {
+      if (targetCode.includes("</body>")) {
+        return targetCode.replace("</body>", `${combinedScript}\n</body>`);
+      }
+      return `${targetCode}\n${combinedScript}`;
+    }
+    if (targetLang === "css") {
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
+              ${targetCode}
+            </style>
+          </head>
+          <body>
+            <div class="preview-container">
+              <h1>CSS Preview</h1>
+              <p>This is a sample paragraph to test your CSS styling in real-time.</p>
+              <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                <button style="padding: 0.5rem 1rem; cursor: pointer;">Button 1</button>
+                <button style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; border-radius: 4px;">Button 2</button>
+              </div>
+              <div class="box" style="margin-top: 2rem; width: 100px; height: 100px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                Box
+              </div>
+              <ul style="margin-top: 1.5rem;">
+                <li>Item One</li>
+                <li>Item Two</li>
+                <li>Item Three</li>
+              </ul>
+            </div>
+            ${combinedScript}
+          </body>
+        </html>
+      `;
+    }
+    return "";
+  };
+
+  // Preview iframe srcDoc state
+  const [srcDoc, setSrcDoc] = useState<string>(() => getSrcDoc(code, language));
+  const srcDocTimerRef = useRef<any>(null);
+
+  // Unified Code Updater
+  const updateCode = (
+    newCode: string,
+    options?: { isIframeSelfUpdate?: boolean; skipHistory?: boolean }
+  ) => {
+    if (newCode === code) return;
+
+    if (options?.isIframeSelfUpdate) {
+      skipIframeReloadRef.current = true;
+    } else {
+      skipIframeReloadRef.current = false;
+    }
+
+    // Record history snapshot (debounced for smooth typing and slider dragging)
+    if (!options?.skipHistory) {
+      if (historyTimerRef.current) clearTimeout(historyTimerRef.current);
+      const prevCode = lastRecordedCodeRef.current;
+      if (prevCode !== newCode) {
+        historyTimerRef.current = setTimeout(() => {
+          setPast((prev) => [...prev.slice(-49), prevCode]);
+          setFuture([]);
+          lastRecordedCodeRef.current = newCode;
+        }, 350);
+      }
+    }
+
+    setCode(newCode);
+  };
+
+  const handleUndo = () => {
+    if (past.length === 0) return;
+    const previous = past[past.length - 1];
+    const newPast = past.slice(0, past.length - 1);
+
+    setPast(newPast);
+    setFuture((prev) => [code, ...prev]);
+    skipIframeReloadRef.current = false;
+    setCode(previous);
+    lastRecordedCodeRef.current = previous;
+    toast.info("Undo", { duration: 1200 });
+  };
+
+  const handleRedo = () => {
+    if (future.length === 0) return;
+    const next = future[0];
+    const newFuture = future.slice(1);
+
+    setPast((prev) => [...prev, code]);
+    setFuture(newFuture);
+    skipIframeReloadRef.current = false;
+    setCode(next);
+    lastRecordedCodeRef.current = next;
+    toast.info("Redo", { duration: 1200 });
+  };
+
+  const triggerUndo = () => {
+    if (monacoEditorRef.current?.hasTextFocus()) {
+      monacoEditorRef.current.trigger("keyboard", "undo", null);
+    } else {
+      handleUndo();
+    }
+  };
+
+  const triggerRedo = () => {
+    if (monacoEditorRef.current?.hasTextFocus()) {
+      monacoEditorRef.current.trigger("keyboard", "redo", null);
+    } else {
+      handleRedo();
+    }
+  };
+
+  // Sync srcDoc for preview iframe when code or language changes
+  useEffect(() => {
+    if (skipIframeReloadRef.current) {
+      skipIframeReloadRef.current = false;
+      return;
+    }
+
+    if (srcDocTimerRef.current) clearTimeout(srcDocTimerRef.current);
+    srcDocTimerRef.current = setTimeout(() => {
+      setSrcDoc(getSrcDoc(code, language));
+    }, 200);
+
+    return () => {
+      if (srcDocTimerRef.current) clearTimeout(srcDocTimerRef.current);
+    };
+  }, [code, language]);
+
+  // Global hotkeys (Cmd+K, Cmd+Z, Cmd+Shift+Z, Cmd+Y)
   useEffect(() => {
     const handleGlobalKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
         e.preventDefault();
         setShowShortcuts((prev) => !prev);
+        return;
+      }
+
+      const activeEl = document.activeElement;
+      const isTypingInInput =
+        activeEl &&
+        (activeEl.tagName === "INPUT" ||
+          activeEl.tagName === "TEXTAREA" ||
+          activeEl.getAttribute("contenteditable") === "true");
+
+      if ((e.metaKey || e.ctrlKey) && !isTypingInInput) {
+        if (e.key.toLowerCase() === "z") {
+          e.preventDefault();
+          if (e.shiftKey) {
+            handleRedo();
+          } else {
+            handleUndo();
+          }
+        } else if (e.key.toLowerCase() === "y") {
+          e.preventDefault();
+          handleRedo();
+        }
       }
     };
     window.addEventListener("keydown", handleGlobalKey);
     return () => window.removeEventListener("keydown", handleGlobalKey);
-  }, []);
+  }, [past, future, code]);
 
   // Handle Forked Snippet Initialization
   useEffect(() => {
@@ -197,7 +367,7 @@ export function Home() {
       language={language}
       theme="vs-dark"
       value={code}
-      onChange={(value) => setCode(value || "")}
+      onChange={(value) => updateCode(value || "")}
       onMount={(editor) => {
         monacoEditorRef.current = editor;
       }}
@@ -217,55 +387,12 @@ export function Home() {
     />
   );
 
-  const getSrcDoc = () => {
-    const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}`;
-    if (language === "html") {
-      if (code.includes("</body>")) {
-        return code.replace("</body>", `${combinedScript}\n</body>`);
-      }
-      return `${code}\n${combinedScript}`;
-    }
-    if (language === "css") {
-      return `
-        <!DOCTYPE html>
-        <html>
-          <head>
-            <style>
-              body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
-              ${code}
-            </style>
-          </head>
-          <body>
-            <div class="preview-container">
-              <h1>CSS Preview</h1>
-              <p>This is a sample paragraph to test your CSS styling in real-time.</p>
-              <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                <button style="padding: 0.5rem 1rem; cursor: pointer;">Button 1</button>
-                <button style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; rounded: 4px;">Button 2</button>
-              </div>
-              <div class="box" style="margin-top: 2rem; width: 100px; height: 100px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
-                Box
-              </div>
-              <ul style="margin-top: 1.5rem;">
-                <li>Item One</li>
-                <li>Item Two</li>
-                <li>Item Three</li>
-              </ul>
-            </div>
-            ${combinedScript}
-          </body>
-        </html>
-      `;
-    }
-    return "";
-  };
-
   const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
     <div className="w-full h-full flex flex-col bg-white overflow-hidden relative">
       <div className="flex-1 relative bg-white overflow-hidden">
         <iframe
           ref={iframeRef}
-          srcDoc={getSrcDoc()}
+          srcDoc={srcDoc}
           title="Preview"
           className="w-full h-full border-none"
           sandbox="allow-scripts allow-modals allow-forms allow-popups"
@@ -275,7 +402,7 @@ export function Home() {
         <ElementInspector
           iframeRef={iframeRef}
           code={code}
-          onCodeChange={setCode}
+          onCodeChange={updateCode}
           isInspectMode={isInspectMode}
           setIsInspectMode={setIsInspectMode}
         />
@@ -335,7 +462,7 @@ export function Home() {
           )}
           <iframe
             ref={iframeRef}
-            srcDoc={getSrcDoc()}
+            srcDoc={srcDoc}
             title="Preview"
             className={`w-full flex-1 bg-white border-none relative z-10 ${
               previewDevice === "iphone"
@@ -352,7 +479,7 @@ export function Home() {
         <ElementInspector
           iframeRef={iframeRef}
           code={code}
-          onCodeChange={setCode}
+          onCodeChange={updateCode}
           isInspectMode={isInspectMode}
           setIsInspectMode={setIsInspectMode}
         />
@@ -379,6 +506,43 @@ export function Home() {
 
           {/* Actions & Toggles */}
           <div className="flex items-center gap-3">
+            {/* Undo / Redo buttons */}
+            <div className="flex bg-zinc-900 rounded-md p-0.5 border border-zinc-800">
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={past.length === 0}
+                      className="h-7 w-7 p-0 rounded text-zinc-300 hover:text-white disabled:opacity-30"
+                      onClick={triggerUndo}
+                    >
+                      <Undo2 size={13} />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Undo (Ctrl+Z / Cmd+Z)</TooltipContent>
+              </Tooltip>
+
+              <Tooltip>
+                <TooltipTrigger
+                  render={
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      disabled={future.length === 0}
+                      className="h-7 w-7 p-0 rounded text-zinc-300 hover:text-white disabled:opacity-30"
+                      onClick={triggerRedo}
+                    >
+                      <Redo2 size={13} />
+                    </Button>
+                  }
+                />
+                <TooltipContent>Redo (Ctrl+Shift+Z / Cmd+Shift+Z)</TooltipContent>
+              </Tooltip>
+            </div>
+
             <Tooltip>
               <TooltipTrigger
                 render={

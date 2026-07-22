@@ -24,9 +24,10 @@ export function ShortcutsModal({ isOpen, onClose }: ShortcutsModalProps) {
     {
       category: "Code Editor & Navigation",
       items: [
+        { keys: ["Cmd", "Z"], desc: "Undo last code / style change" },
+        { keys: ["Cmd", "Shift", "Z"], desc: "Redo last undone change" },
         { keys: ["Cmd", "S"], desc: "Share / Save snippet to cloud" },
         { keys: ["Cmd", "K"], desc: "Open Shortcuts Command Palette" },
-        { keys: ["F8"], desc: "Cycle between Code, Split, and Live Preview mode" },
         { keys: ["Esc"], desc: "Deselect inspector element / close overlays" },
       ],
     },

@@ -69,6 +69,81 @@ export function ViewSnippet() {
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const monacoEditorRef = useRef<any>(null);
 
+  // Skip iframe reload ref for live element inspector updates
+  const skipIframeReloadRef = useRef<boolean>(false);
+  const [srcDoc, setSrcDoc] = useState<string>("");
+  const srcDocTimerRef = useRef<any>(null);
+
+  const buildSrcDoc = (targetCode: string, targetLang: string) => {
+    const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}`;
+    if (targetLang === "html") {
+      if (targetCode.includes("</body>")) {
+        return targetCode.replace("</body>", `${combinedScript}\n</body>`);
+      }
+      return `${targetCode}\n${combinedScript}`;
+    }
+    if (targetLang === "css") {
+      return `
+        <!DOCTYPE html>
+        <html>
+          <head>
+            <style>
+              body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
+              ${targetCode}
+            </style>
+          </head>
+          <body>
+            <div class="preview-container">
+              <h1>CSS Preview</h1>
+              <p>This is a sample paragraph to test your CSS styling in real-time.</p>
+              <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
+                <button style="padding: 0.5rem 1rem; cursor: pointer;">Button 1</button>
+                <button style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; border-radius: 4px;">Button 2</button>
+              </div>
+              <div class="box" style="margin-top: 2rem; width: 100px; height: 100px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
+                Box
+              </div>
+              <ul style="margin-top: 1.5rem;">
+                <li>Item One</li>
+                <li>Item Two</li>
+                <li>Item Three</li>
+              </ul>
+            </div>
+            ${combinedScript}
+          </body>
+        </html>
+      `;
+    }
+    return "";
+  };
+
+  const updateSnippetCode = (newCode: string, options?: { isIframeSelfUpdate?: boolean }) => {
+    if (options?.isIframeSelfUpdate) {
+      skipIframeReloadRef.current = true;
+    } else {
+      skipIframeReloadRef.current = false;
+    }
+    setSnippet((prev: any) => (prev ? { ...prev, code: newCode } : prev));
+  };
+
+  useEffect(() => {
+    if (!snippet?.code) return;
+
+    if (skipIframeReloadRef.current) {
+      skipIframeReloadRef.current = false;
+      return;
+    }
+
+    if (srcDocTimerRef.current) clearTimeout(srcDocTimerRef.current);
+    srcDocTimerRef.current = setTimeout(() => {
+      setSrcDoc(buildSrcDoc(snippet.code, snippet.language));
+    }, 200);
+
+    return () => {
+      if (srcDocTimerRef.current) clearTimeout(srcDocTimerRef.current);
+    };
+  }, [snippet?.code, snippet?.language]);
+
   useEffect(() => {
     const handleGlobalKey = (e: KeyboardEvent) => {
       if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === "k") {
@@ -654,6 +729,7 @@ export function ViewSnippet() {
                   language={snippet.language}
                   theme="vs-dark"
                   value={snippet.code}
+                  onChange={(value) => updateSnippetCode(value || "")}
                   onMount={(editor) => {
                     monacoEditorRef.current = editor;
                   }}
@@ -675,55 +751,12 @@ export function ViewSnippet() {
               </>
             );
 
-            const getSrcDoc = () => {
-              const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}`;
-              if (snippet.language === "html") {
-                if (snippet.code?.includes("</body>")) {
-                  return snippet.code.replace("</body>", `${combinedScript}\n</body>`);
-                }
-                return `${snippet.code || ""}\n${combinedScript}`;
-              }
-              if (snippet.language === "css") {
-                return `
-                  <!DOCTYPE html>
-                  <html>
-                    <head>
-                      <style>
-                        body { margin: 0; padding: 2rem; font-family: system-ui, -apple-system, sans-serif; }
-                        ${snippet.code}
-                      </style>
-                    </head>
-                    <body>
-                      <div class="preview-container">
-                        <h1>CSS Preview</h1>
-                        <p>This is a sample paragraph to test your CSS styling in real-time.</p>
-                        <div style="display: flex; gap: 1rem; margin-top: 1.5rem;">
-                          <button style="padding: 0.5rem 1rem; cursor: pointer;">Button 1</button>
-                          <button style="padding: 0.5rem 1rem; cursor: pointer; background: #3b82f6; color: white; border: none; rounded: 4px;">Button 2</button>
-                        </div>
-                        <div class="box" style="margin-top: 2rem; width: 100px; height: 100px; background: #e2e8f0; display: flex; align-items: center; justify-content: center; border-radius: 8px;">
-                          Box
-                        </div>
-                        <ul style="margin-top: 1.5rem;">
-                          <li>Item One</li>
-                          <li>Item Two</li>
-                          <li>Item Three</li>
-                        </ul>
-                      </div>
-                      ${combinedScript}
-                    </body>
-                  </html>
-                `;
-              }
-              return "";
-            };
-
             const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
               <div className="w-full h-full flex flex-col bg-white overflow-hidden relative">
                 <div className="flex-1 relative bg-white overflow-hidden">
                   <iframe
                     ref={iframeRef}
-                    srcDoc={getSrcDoc()}
+                    srcDoc={srcDoc}
                     title="Preview"
                     className="w-full h-full border-none"
                     sandbox="allow-scripts allow-modals allow-forms allow-popups"
@@ -733,7 +766,7 @@ export function ViewSnippet() {
                   <ElementInspector
                     iframeRef={iframeRef}
                     code={snippet.code || ""}
-                    onCodeChange={(newCode) => setSnippet((prev: any) => ({ ...prev, code: newCode }))}
+                    onCodeChange={updateSnippetCode}
                     isInspectMode={isInspectMode}
                     setIsInspectMode={setIsInspectMode}
                   />
@@ -793,7 +826,7 @@ export function ViewSnippet() {
                     )}
                     <iframe
                       ref={iframeRef}
-                      srcDoc={getSrcDoc()}
+                      srcDoc={srcDoc}
                       title="Preview"
                       className={`w-full flex-1 bg-white border-none relative z-10 ${
                         previewDevice === "iphone"
@@ -810,7 +843,7 @@ export function ViewSnippet() {
                   <ElementInspector
                     iframeRef={iframeRef}
                     code={snippet.code || ""}
-                    onCodeChange={(newCode) => setSnippet((prev: any) => ({ ...prev, code: newCode }))}
+                    onCodeChange={updateSnippetCode}
                     isInspectMode={isInspectMode}
                     setIsInspectMode={setIsInspectMode}
                   />

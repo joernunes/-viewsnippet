@@ -76,7 +76,7 @@ export interface DomTreeNode {
 interface ElementInspectorProps {
   iframeRef: React.RefObject<HTMLIFrameElement | null>;
   code: string;
-  onCodeChange?: (newCode: string) => void;
+  onCodeChange?: (newCode: string, options?: { isIframeSelfUpdate?: boolean }) => void;
   isInspectMode: boolean;
   setIsInspectMode: (val: boolean) => void;
   readOnly?: boolean;
@@ -648,9 +648,9 @@ export function ElementInspector({
   const updateCodeWithNewBodyHtml = (newBodyInnerHtml: string) => {
     if (code.includes("<body") && code.includes("</body>")) {
       const updated = code.replace(/<body([^>]*)>([\s\S]*?)<\/body>/i, `<body$1>\n${newBodyInnerHtml}\n</body>`);
-      onCodeChange?.(updated);
+      onCodeChange?.(updated, { isIframeSelfUpdate: true });
     } else {
-      onCodeChange?.(newBodyInnerHtml);
+      onCodeChange?.(newBodyInnerHtml, { isIframeSelfUpdate: true });
     }
   };
 

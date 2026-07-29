@@ -20,9 +20,26 @@ import {
   AlignLeft,
   AlignCenter,
   AlignRight,
+  AlignJustify,
   Box,
   Wand2,
   Component,
+  Bold,
+  Italic,
+  Underline,
+  Baseline,
+  CaseSensitive,
+  Lock,
+  Unlock,
+  Maximize2,
+  Minimize2,
+  Grid,
+  Sliders,
+  Move,
+  Layout,
+  Scaling,
+  Frame,
+  Layers as LayersIcon,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -51,6 +68,12 @@ export interface SelectedElementData {
     backgroundColor: string;
     fontSize: string;
     fontFamily: string;
+    fontWeight?: string;
+    lineHeight?: string;
+    letterSpacing?: string;
+    textTransform?: string;
+    fontStyle?: string;
+    textDecoration?: string;
     padding: string;
     margin: string;
     display: string;
@@ -204,6 +227,12 @@ export const INSPECTOR_INJECT_SCRIPT = `
         backgroundColor: computed.backgroundColor,
         fontSize: computed.fontSize,
         fontFamily: computed.fontFamily,
+        fontWeight: computed.fontWeight,
+        lineHeight: computed.lineHeight,
+        letterSpacing: computed.letterSpacing,
+        textTransform: computed.textTransform,
+        fontStyle: computed.fontStyle,
+        textDecoration: computed.textDecorationLine || computed.textDecoration,
         padding: computed.padding,
         margin: computed.margin,
         display: computed.display,
@@ -537,6 +566,19 @@ export function ElementInspector({
   const [marginBox, setMarginBox] = useState({ top: 0, right: 0, bottom: 0, left: 0 });
   const [paddingBox, setPaddingBox] = useState({ top: 0, right: 0, bottom: 0, left: 0 });
 
+  // Figma Auto Layout & Box Model States
+  const [isPaddingLinked, setIsPaddingLinked] = useState(false);
+  const [isMarginLinked, setIsMarginLinked] = useState(false);
+  const [borderWidth, setBorderWidth] = useState("1px");
+  const [borderColor, setBorderColor] = useState("#3f3f46");
+  const [borderStyle, setBorderStyle] = useState("solid");
+  const [gapValue, setGapValue] = useState("0px");
+  const [elemWidth, setElemWidth] = useState("auto");
+  const [elemHeight, setElemHeight] = useState("auto");
+  const [flexDir, setFlexDir] = useState("row");
+  const [justifyContentVal, setJustifyContentVal] = useState("flex-start");
+  const [alignItemsVal, setAlignItemsVal] = useState("stretch");
+
   // Quick edit local states
   const [editText, setEditText] = useState("");
   const [editHtml, setEditHtml] = useState("");
@@ -549,6 +591,13 @@ export function ElementInspector({
   const [textColor, setTextColor] = useState("#000000");
   const [bgColor, setBgColor] = useState("#ffffff");
   const [fontSize, setFontSize] = useState("16px");
+  const [fontFamily, setFontFamily] = useState("sans-serif");
+  const [fontWeight, setFontWeight] = useState("400");
+  const [lineHeight, setLineHeight] = useState("normal");
+  const [letterSpacing, setLetterSpacing] = useState("normal");
+  const [textTransform, setTextTransform] = useState("none");
+  const [fontStyle, setFontStyle] = useState("normal");
+  const [textDecoration, setTextDecoration] = useState("none");
   const [padding, setPadding] = useState("");
   const [margin, setMargin] = useState("");
   const [display, setDisplay] = useState("block");
@@ -606,11 +655,36 @@ export function ElementInspector({
         if (elData.styles.color) setTextColor(rgbToHex(elData.styles.color));
         if (elData.styles.backgroundColor) setBgColor(rgbToHex(elData.styles.backgroundColor));
         if (elData.styles.fontSize) setFontSize(elData.styles.fontSize);
+        if (elData.styles.fontFamily) setFontFamily(elData.styles.fontFamily.replace(/["']/g, ""));
+        if (elData.styles.fontWeight) setFontWeight(elData.styles.fontWeight);
+        if (elData.styles.lineHeight) setLineHeight(elData.styles.lineHeight);
+        if (elData.styles.letterSpacing) setLetterSpacing(elData.styles.letterSpacing);
+        if (elData.styles.textTransform) setTextTransform(elData.styles.textTransform);
+        if (elData.styles.fontStyle) setFontStyle(elData.styles.fontStyle);
+        if (elData.styles.textDecoration) setTextDecoration(elData.styles.textDecoration);
         if (elData.styles.padding) setPadding(elData.styles.padding);
         if (elData.styles.margin) setMargin(elData.styles.margin);
         if (elData.styles.display) setDisplay(elData.styles.display);
         if (elData.styles.borderRadius) setBorderRadius(elData.styles.borderRadius);
         if (elData.styles.textAlign) setTextAlign(elData.styles.textAlign);
+
+        // Smart Auto-Tab Switching according to element archetype
+        const tag = elData.tagName.toLowerCase();
+        const textTags = [
+          "p", "h1", "h2", "h3", "h4", "h5", "h6", "span", "a", "button",
+          "label", "li", "strong", "em", "b", "i", "small", "blockquote",
+          "code", "caption", "th", "td", "figcaption"
+        ];
+        const attrTags = ["img", "input", "textarea", "select", "iframe", "video", "audio", "source"];
+        const containerTags = ["div", "section", "main", "article", "header", "footer", "nav", "aside", "ul", "ol", "table", "tbody", "tr", "form"];
+
+        if (textTags.includes(tag) || (elData.innerText && elData.innerText.trim().length > 0 && !containerTags.includes(tag))) {
+          setActiveTab("props"); // Switch to Content & Typography editor
+        } else if (attrTags.includes(tag) && (!elData.innerText || elData.innerText.trim().length === 0)) {
+          setActiveTab("attrs"); // Switch to Attributes editor
+        } else {
+          setActiveTab("styles"); // Switch to Box & CSS Styles editor
+        }
       } else if (data.type === "INSPECTOR_HTML_UPDATED") {
         if (!readOnly && onCodeChange && data.html) {
           updateCodeWithNewBodyHtml(data.html);
@@ -940,7 +1014,7 @@ export function ElementInspector({
               activeTab === "box" ? "bg-zinc-800 text-white shadow-sm" : "text-zinc-400 hover:text-zinc-200"
             }`}
           >
-            <Box size={12} className="text-amber-400" /> Box Model
+            <Layout size={12} className="text-cyan-400" /> Figma Layout
           </button>
           <button
             onClick={() => {
@@ -1090,148 +1164,523 @@ export function ElementInspector({
             </p>
           </div>
         ) : activeTab === "box" && selectedElement ? (
-          /* Chrome DevTools Box Model Diagram */
-          <div className="space-y-2">
-            <div className="flex items-center justify-between">
-              <Label className="text-xs font-semibold text-amber-400 flex items-center gap-1.5">
-                <Box size={14} /> Interactive Chrome DevTools Box Model
-              </Label>
-              <Button
-                size="sm"
-                onClick={() => handleApplyBoxModel()}
-                className="h-6 px-2.5 text-[11px] bg-amber-600 hover:bg-amber-500 text-white rounded-md font-medium"
-              >
-                <Check size={11} className="mr-1" /> Save Spacing
-              </Button>
+          /* Figma-Inspired Auto Layout & Box Inspector */
+          <div className="space-y-3 animate-in fade-in duration-200">
+            {/* Top Toolbar */}
+            <div className="flex items-center justify-between pb-1 border-b border-zinc-800/80">
+              <div className="flex items-center gap-2">
+                <div className="w-5 h-5 rounded-md bg-gradient-to-tr from-violet-600 via-pink-500 to-amber-400 flex items-center justify-center text-white text-[10px] font-bold shadow-sm">
+                  F
+                </div>
+                <Label className="text-xs font-semibold text-zinc-100 flex items-center gap-1.5">
+                  Figma Auto Layout & Canvas Spacing
+                </Label>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  size="sm"
+                  onClick={() => handleApplyBoxModel()}
+                  className="h-6 px-2.5 text-[11px] bg-emerald-600 hover:bg-emerald-500 text-white rounded-md font-medium shadow-sm gap-1"
+                >
+                  <Check size={11} /> Save Spacing
+                </Button>
+              </div>
             </div>
 
-            <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-4 flex items-center justify-center">
-              {/* Outer Margin Box */}
-              <div className="bg-amber-950/40 border border-amber-600/60 rounded-xl p-3 w-full max-w-md text-center relative shadow-inner">
-                <span className="absolute top-1 left-2 text-[10px] font-mono font-semibold text-amber-400 uppercase">
-                  Margin (px)
+            {/* Figma Quick Padding Scale Presets */}
+            <div className="bg-zinc-900/90 p-2.5 rounded-xl border border-zinc-800/80 space-y-1.5">
+              <div className="flex items-center justify-between text-[11px] text-zinc-400">
+                <span className="font-medium flex items-center gap-1 text-zinc-300">
+                  <Sliders size={12} className="text-cyan-400" /> Figma Spacing Scale Presets
                 </span>
-                {/* Margin Inputs */}
-                <div className="flex items-center justify-between mb-1">
-                  <div className="w-full flex justify-center">
-                    <Input
-                      type="number"
-                      value={marginBox.top}
-                      onChange={(e) => {
-                        const val = parseInt(e.target.value) || 0;
-                        const next = { ...marginBox, top: val };
-                        setMarginBox(next);
-                        handleApplyBoxModel(next, paddingBox);
-                      }}
-                      className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded"
-                    />
-                  </div>
+                <span className="text-[10px] text-zinc-500">Quick apply padding</span>
+              </div>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {[0, 4, 8, 12, 16, 24, 32, 48, 64].map((px) => (
+                  <button
+                    key={`p-preset-${px}`}
+                    onClick={() => {
+                      const next = { top: px, right: px, bottom: px, left: px };
+                      setPaddingBox(next);
+                      handleApplyBoxModel(marginBox, next);
+                    }}
+                    className="px-2 py-1 rounded-md bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 hover:border-cyan-500/50 text-cyan-300 font-mono text-[11px] transition-all"
+                  >
+                    {px}px
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            {/* Interactive Figma Box Diagram Canvas */}
+            <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-4 flex flex-col items-center justify-center relative overflow-hidden">
+              {/* Subtle Canvas Dot Pattern Background */}
+              <div
+                className="absolute inset-0 opacity-10 pointer-events-none"
+                style={{
+                  backgroundImage: `radial-gradient(#ffffff 1px, transparent 1px)`,
+                  backgroundSize: "12px 12px",
+                }}
+              />
+
+              {/* Outer Margin Box (Amber) */}
+              <div className="bg-amber-950/30 border border-amber-500/50 rounded-xl p-3 w-full max-w-lg text-center relative shadow-inner transition-all">
+                <div className="absolute top-1 left-2 flex items-center gap-1.5">
+                  <span className="text-[10px] font-mono font-bold text-amber-400 uppercase tracking-wider">
+                    MARGIN
+                  </span>
+                  <button
+                    onClick={() => setIsMarginLinked(!isMarginLinked)}
+                    className="text-amber-500 hover:text-amber-300 p-0.5 rounded transition-colors"
+                    title={isMarginLinked ? "Unlink margins" : "Link margins (uniform)"}
+                  >
+                    {isMarginLinked ? <Lock size={11} /> : <Unlock size={11} />}
+                  </button>
+                </div>
+
+                {/* Top Margin Input */}
+                <div className="flex justify-center mb-1.5">
+                  <Input
+                    type="number"
+                    value={marginBox.top}
+                    onChange={(e) => {
+                      const val = parseInt(e.target.value) || 0;
+                      const next = isMarginLinked
+                        ? { top: val, right: val, bottom: val, left: val }
+                        : { ...marginBox, top: val };
+                      setMarginBox(next);
+                      handleApplyBoxModel(next, paddingBox);
+                    }}
+                    className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded shadow-sm focus:border-amber-500"
+                  />
                 </div>
 
                 <div className="flex items-center justify-between gap-2">
+                  {/* Left Margin Input */}
                   <Input
                     type="number"
                     value={marginBox.left}
                     onChange={(e) => {
                       const val = parseInt(e.target.value) || 0;
-                      const next = { ...marginBox, left: val };
+                      const next = isMarginLinked
+                        ? { top: val, right: val, bottom: val, left: val }
+                        : { ...marginBox, left: val };
                       setMarginBox(next);
                       handleApplyBoxModel(next, paddingBox);
                     }}
-                    className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded shrink-0"
+                    className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded shrink-0 shadow-sm focus:border-amber-500"
                   />
 
-                  {/* Inner Padding Box */}
-                  <div className="bg-emerald-950/40 border border-emerald-600/60 rounded-lg p-3 flex-1 relative">
-                    <span className="absolute top-1 left-2 text-[10px] font-mono font-semibold text-emerald-400 uppercase">
-                      Padding (px)
-                    </span>
-
-                    <div className="flex justify-center mb-1">
-                      <Input
-                        type="number"
-                        value={paddingBox.top}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          const next = { ...paddingBox, top: val };
-                          setPaddingBox(next);
-                          handleApplyBoxModel(marginBox, next);
-                        }}
-                        className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-emerald-800/80 text-emerald-300 p-0 rounded"
-                      />
+                  {/* Middle Border / Stroke Box (Yellow) */}
+                  <div className="bg-yellow-950/20 border border-yellow-500/40 rounded-lg p-2.5 flex-1 relative">
+                    <div className="absolute top-1 left-2 text-[9px] font-mono font-bold text-yellow-400 uppercase">
+                      BORDER STROKE
                     </div>
 
-                    <div className="flex items-center justify-between gap-2">
-                      <Input
-                        type="number"
-                        value={paddingBox.left}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          const next = { ...paddingBox, left: val };
-                          setPaddingBox(next);
-                          handleApplyBoxModel(marginBox, next);
-                        }}
-                        className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-emerald-800/80 text-emerald-300 p-0 rounded shrink-0"
-                      />
-
-                      {/* Content Dimensions Box */}
-                      <div className="bg-blue-950/60 border border-blue-500/80 rounded px-4 py-2 text-center text-xs font-mono font-bold text-blue-300 flex-1 my-1">
-                        {selectedElement.rect.width} × {selectedElement.rect.height} px
+                    {/* Inner Padding Box (Cyan / Blue) */}
+                    <div className="bg-cyan-950/30 border border-cyan-500/50 rounded-md p-2.5 my-3 relative">
+                      <div className="absolute top-1 left-2 flex items-center gap-1.5">
+                        <span className="text-[9px] font-mono font-bold text-cyan-400 uppercase tracking-wider">
+                          PADDING
+                        </span>
+                        <button
+                          onClick={() => setIsPaddingLinked(!isPaddingLinked)}
+                          className="text-cyan-400 hover:text-cyan-200 p-0.5 rounded transition-colors"
+                          title={isPaddingLinked ? "Unlink padding" : "Link padding (uniform)"}
+                        >
+                          {isPaddingLinked ? <Lock size={10} /> : <Unlock size={10} />}
+                        </button>
                       </div>
 
-                      <Input
-                        type="number"
-                        value={paddingBox.right}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          const next = { ...paddingBox, right: val };
-                          setPaddingBox(next);
-                          handleApplyBoxModel(marginBox, next);
-                        }}
-                        className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-emerald-800/80 text-emerald-300 p-0 rounded shrink-0"
-                      />
-                    </div>
+                      {/* Top Padding Input */}
+                      <div className="flex justify-center mb-1">
+                        <Input
+                          type="number"
+                          value={paddingBox.top}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            const next = isPaddingLinked
+                              ? { top: val, right: val, bottom: val, left: val }
+                              : { ...paddingBox, top: val };
+                            setPaddingBox(next);
+                            handleApplyBoxModel(marginBox, next);
+                          }}
+                          className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-cyan-800/80 text-cyan-300 p-0 rounded shadow-sm focus:border-cyan-400"
+                        />
+                      </div>
 
-                    <div className="flex justify-center mt-1">
-                      <Input
-                        type="number"
-                        value={paddingBox.bottom}
-                        onChange={(e) => {
-                          const val = parseInt(e.target.value) || 0;
-                          const next = { ...paddingBox, bottom: val };
-                          setPaddingBox(next);
-                          handleApplyBoxModel(marginBox, next);
-                        }}
-                        className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-emerald-800/80 text-emerald-300 p-0 rounded"
-                      />
+                      <div className="flex items-center justify-between gap-2">
+                        {/* Left Padding Input */}
+                        <Input
+                          type="number"
+                          value={paddingBox.left}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            const next = isPaddingLinked
+                              ? { top: val, right: val, bottom: val, left: val }
+                              : { ...paddingBox, left: val };
+                            setPaddingBox(next);
+                            handleApplyBoxModel(marginBox, next);
+                          }}
+                          className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-cyan-800/80 text-cyan-300 p-0 rounded shrink-0 shadow-sm focus:border-cyan-400"
+                        />
+
+                        {/* Content Center Dimensions */}
+                        <div className="bg-violet-950/60 border border-violet-500/70 rounded-md px-3 py-2 text-center text-xs font-mono font-bold text-violet-200 flex-1 my-1 shadow-md">
+                          <span className="text-[10px] text-violet-400 block font-sans">CONTENT</span>
+                          {selectedElement.rect.width} × {selectedElement.rect.height} px
+                        </div>
+
+                        {/* Right Padding Input */}
+                        <Input
+                          type="number"
+                          value={paddingBox.right}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            const next = isPaddingLinked
+                              ? { top: val, right: val, bottom: val, left: val }
+                              : { ...paddingBox, right: val };
+                            setPaddingBox(next);
+                            handleApplyBoxModel(marginBox, next);
+                          }}
+                          className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-cyan-800/80 text-cyan-300 p-0 rounded shrink-0 shadow-sm focus:border-cyan-400"
+                        />
+                      </div>
+
+                      {/* Bottom Padding Input */}
+                      <div className="flex justify-center mt-1">
+                        <Input
+                          type="number"
+                          value={paddingBox.bottom}
+                          onChange={(e) => {
+                            const val = parseInt(e.target.value) || 0;
+                            const next = isPaddingLinked
+                              ? { top: val, right: val, bottom: val, left: val }
+                              : { ...paddingBox, bottom: val };
+                            setPaddingBox(next);
+                            handleApplyBoxModel(marginBox, next);
+                          }}
+                          className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-cyan-800/80 text-cyan-300 p-0 rounded shadow-sm focus:border-cyan-400"
+                        />
+                      </div>
                     </div>
                   </div>
 
+                  {/* Right Margin Input */}
                   <Input
                     type="number"
                     value={marginBox.right}
                     onChange={(e) => {
                       const val = parseInt(e.target.value) || 0;
-                      const next = { ...marginBox, right: val };
+                      const next = isMarginLinked
+                        ? { top: val, right: val, bottom: val, left: val }
+                        : { ...marginBox, right: val };
                       setMarginBox(next);
                       handleApplyBoxModel(next, paddingBox);
                     }}
-                    className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded shrink-0"
+                    className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded shrink-0 shadow-sm focus:border-amber-500"
                   />
                 </div>
 
-                <div className="flex justify-center mt-1">
+                {/* Bottom Margin Input */}
+                <div className="flex justify-center mt-1.5">
                   <Input
                     type="number"
                     value={marginBox.bottom}
                     onChange={(e) => {
                       const val = parseInt(e.target.value) || 0;
-                      const next = { ...marginBox, bottom: val };
+                      const next = isMarginLinked
+                        ? { top: val, right: val, bottom: val, left: val }
+                        : { ...marginBox, bottom: val };
                       setMarginBox(next);
                       handleApplyBoxModel(next, paddingBox);
                     }}
-                    className="w-14 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded"
+                    className="w-16 h-6 text-center text-xs font-mono bg-zinc-950 border-amber-800/80 text-amber-300 p-0 rounded shadow-sm focus:border-amber-500"
                   />
+                </div>
+              </div>
+            </div>
+
+            {/* Figma Auto-Layout & 3x3 Alignment Matrix Grid */}
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {/* Auto Layout Matrix */}
+              <div className="bg-zinc-900/90 p-3 rounded-xl border border-zinc-800/80 space-y-2">
+                <Label className="text-xs text-zinc-300 font-medium flex items-center gap-1.5">
+                  <Grid size={13} className="text-violet-400" /> Figma Alignment Grid (3×3)
+                </Label>
+
+                {/* 3x3 Alignment Buttons */}
+                <div className="grid grid-cols-3 gap-1 bg-zinc-950 p-2 rounded-lg border border-zinc-800 max-w-[180px] mx-auto">
+                  {[
+                    { label: "TL", justify: "flex-start", align: "flex-start" },
+                    { label: "TC", justify: "center", align: "flex-start" },
+                    { label: "TR", justify: "flex-end", align: "flex-start" },
+                    { label: "CL", justify: "flex-start", align: "center" },
+                    { label: "C", justify: "center", align: "center" },
+                    { label: "CR", justify: "flex-end", align: "center" },
+                    { label: "BL", justify: "flex-start", align: "flex-end" },
+                    { label: "BC", justify: "center", align: "flex-end" },
+                    { label: "BR", justify: "flex-end", align: "flex-end" },
+                  ].map((pos, idx) => {
+                    const isActive =
+                      justifyContentVal === pos.justify && alignItemsVal === pos.align;
+                    return (
+                      <button
+                        key={`align-mat-${idx}`}
+                        onClick={() => {
+                          setJustifyContentVal(pos.justify);
+                          setAlignItemsVal(pos.align);
+                          handleUpdateStyleProperty("display", "flex");
+                          handleUpdateStyleProperty("justifyContent", pos.justify);
+                          handleUpdateStyleProperty("alignItems", pos.align);
+                        }}
+                        className={`h-8 rounded flex items-center justify-center text-[10px] font-mono transition-all ${
+                          isActive
+                            ? "bg-violet-600 text-white font-bold shadow-md ring-1 ring-violet-400"
+                            : "bg-zinc-900 text-zinc-500 hover:text-zinc-200 hover:bg-zinc-800"
+                        }`}
+                        title={`Align: ${pos.label}`}
+                      >
+                        {pos.label}
+                      </button>
+                    );
+                  })}
+                </div>
+
+                {/* Quick Alignment Toggles */}
+                <div className="flex gap-1.5 pt-1">
+                  <button
+                    onClick={() => {
+                      setJustifyContentVal("space-between");
+                      handleUpdateStyleProperty("display", "flex");
+                      handleUpdateStyleProperty("justifyContent", "space-between");
+                    }}
+                    className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-medium border transition-all ${
+                      justifyContentVal === "space-between"
+                        ? "bg-violet-950 text-violet-300 border-violet-700"
+                        : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700"
+                    }`}
+                  >
+                    Space-Between
+                  </button>
+                  <button
+                    onClick={() => {
+                      setJustifyContentVal("space-around");
+                      handleUpdateStyleProperty("display", "flex");
+                      handleUpdateStyleProperty("justifyContent", "space-around");
+                    }}
+                    className={`flex-1 py-1 px-2 rounded-lg text-[10px] font-medium border transition-all ${
+                      justifyContentVal === "space-around"
+                        ? "bg-violet-950 text-violet-300 border-violet-700"
+                        : "bg-zinc-950 text-zinc-400 border-zinc-800 hover:border-zinc-700"
+                    }`}
+                  >
+                    Space-Around
+                  </button>
+                </div>
+              </div>
+
+              {/* Figma Layout & Gap Controls */}
+              <div className="bg-zinc-900/90 p-3 rounded-xl border border-zinc-800/80 space-y-2.5">
+                <Label className="text-xs text-zinc-300 font-medium flex items-center gap-1.5">
+                  <Layout size={13} className="text-emerald-400" /> Direction & Gap
+                </Label>
+
+                {/* Direction Buttons */}
+                <div>
+                  <span className="text-[10px] text-zinc-400 mb-1 block">Direction</span>
+                  <div className="flex bg-zinc-950 rounded-lg p-1 border border-zinc-800 gap-1">
+                    {[
+                      { name: "Row", val: "row" },
+                      { name: "Column", val: "column" },
+                      { name: "Block", val: "block" },
+                      { name: "Grid", val: "grid" },
+                    ].map((d) => (
+                      <button
+                        key={d.val}
+                        onClick={() => {
+                          setFlexDir(d.val);
+                          if (d.val === "block") {
+                            setDisplay("block");
+                            handleUpdateStyleProperty("display", "block");
+                          } else if (d.val === "grid") {
+                            setDisplay("grid");
+                            handleUpdateStyleProperty("display", "grid");
+                          } else {
+                            setDisplay("flex");
+                            handleUpdateStyleProperty("display", "flex");
+                            handleUpdateStyleProperty("flexDirection", d.val);
+                          }
+                        }}
+                        className={`flex-1 py-1 text-[11px] font-medium rounded ${
+                          flexDir === d.val
+                            ? "bg-emerald-600 text-white shadow-sm"
+                            : "text-zinc-400 hover:text-zinc-200"
+                        }`}
+                      >
+                        {d.name}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Gap Input */}
+                <div>
+                  <span className="text-[10px] text-zinc-400 mb-1 block">Gap (Spacing Between)</span>
+                  <div className="flex gap-1.5 items-center">
+                    <Input
+                      value={gapValue}
+                      onChange={(e) => {
+                        setGapValue(e.target.value);
+                        handleUpdateStyleProperty("gap", e.target.value);
+                      }}
+                      placeholder="16px"
+                      className="h-7 bg-zinc-950 border-zinc-800 text-xs font-mono rounded-lg flex-1"
+                    />
+                    {["0px", "8px", "16px", "24px"].map((g) => (
+                      <button
+                        key={`gap-${g}`}
+                        onClick={() => {
+                          setGapValue(g);
+                          handleUpdateStyleProperty("gap", g);
+                        }}
+                        className="px-2 py-1 bg-zinc-950 hover:bg-zinc-800 border border-zinc-800 text-[10px] text-emerald-300 font-mono rounded-lg"
+                      >
+                        {g}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Dimensions & Resizing Modes */}
+            <div className="bg-zinc-900/90 p-3 rounded-xl border border-zinc-800/80 space-y-2">
+              <Label className="text-xs text-zinc-300 font-medium flex items-center gap-1.5">
+                <Scaling size={13} className="text-pink-400" /> Resizing & Dimensions
+              </Label>
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
+                {/* Width */}
+                <div>
+                  <span className="text-[10px] text-zinc-400 mb-1 block">Width</span>
+                  <Input
+                    value={elemWidth}
+                    onChange={(e) => {
+                      setElemWidth(e.target.value);
+                      handleUpdateStyleProperty("width", e.target.value);
+                    }}
+                    placeholder="100% / auto / 300px"
+                    className="h-7 bg-zinc-950 border-zinc-800 text-xs font-mono rounded-lg"
+                  />
+                  <div className="flex gap-1 mt-1">
+                    <button
+                      onClick={() => {
+                        setElemWidth("100%");
+                        handleUpdateStyleProperty("width", "100%");
+                      }}
+                      className="flex-1 py-0.5 text-[9px] bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 rounded"
+                    >
+                      Fill
+                    </button>
+                    <button
+                      onClick={() => {
+                        setElemWidth("fit-content");
+                        handleUpdateStyleProperty("width", "fit-content");
+                      }}
+                      className="flex-1 py-0.5 text-[9px] bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 rounded"
+                    >
+                      Hug
+                    </button>
+                  </div>
+                </div>
+
+                {/* Height */}
+                <div>
+                  <span className="text-[10px] text-zinc-400 mb-1 block">Height</span>
+                  <Input
+                    value={elemHeight}
+                    onChange={(e) => {
+                      setElemHeight(e.target.value);
+                      handleUpdateStyleProperty("height", e.target.value);
+                    }}
+                    placeholder="auto / 200px"
+                    className="h-7 bg-zinc-950 border-zinc-800 text-xs font-mono rounded-lg"
+                  />
+                  <div className="flex gap-1 mt-1">
+                    <button
+                      onClick={() => {
+                        setElemHeight("100%");
+                        handleUpdateStyleProperty("height", "100%");
+                      }}
+                      className="flex-1 py-0.5 text-[9px] bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 rounded"
+                    >
+                      Fill
+                    </button>
+                    <button
+                      onClick={() => {
+                        setElemHeight("auto");
+                        handleUpdateStyleProperty("height", "auto");
+                      }}
+                      className="flex-1 py-0.5 text-[9px] bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 rounded"
+                    >
+                      Hug
+                    </button>
+                  </div>
+                </div>
+
+                {/* Corner Radius */}
+                <div>
+                  <span className="text-[10px] text-zinc-400 mb-1 block">Corner Radius</span>
+                  <Input
+                    value={borderRadius}
+                    onChange={(e) => {
+                      setBorderRadius(e.target.value);
+                      handleUpdateStyleProperty("borderRadius", e.target.value);
+                    }}
+                    placeholder="12px / 9999px"
+                    className="h-7 bg-zinc-950 border-zinc-800 text-xs font-mono rounded-lg"
+                  />
+                  <div className="flex gap-1 mt-1">
+                    {["0px", "8px", "16px", "9999px"].map((r) => (
+                      <button
+                        key={`rad-${r}`}
+                        onClick={() => {
+                          setBorderRadius(r);
+                          handleUpdateStyleProperty("borderRadius", r);
+                        }}
+                        className="flex-1 py-0.5 text-[9px] bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800 rounded"
+                      >
+                        {r === "9999px" ? "Pill" : r}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Border Stroke Color & Width */}
+                <div>
+                  <span className="text-[10px] text-zinc-400 mb-1 block">Border Stroke</span>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={borderColor}
+                      onChange={(e) => {
+                        setBorderColor(e.target.value);
+                        handleUpdateStyleProperty("borderColor", e.target.value);
+                        handleUpdateStyleProperty("borderStyle", "solid");
+                      }}
+                      className="w-6 h-6 rounded border-none bg-transparent cursor-pointer shrink-0"
+                    />
+                    <Input
+                      value={borderWidth}
+                      onChange={(e) => {
+                        setBorderWidth(e.target.value);
+                        handleUpdateStyleProperty("borderWidth", e.target.value);
+                        handleUpdateStyleProperty("borderStyle", "solid");
+                      }}
+                      placeholder="1px"
+                      className="h-7 bg-zinc-950 border-zinc-800 text-xs font-mono rounded-lg flex-1"
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -1266,66 +1715,366 @@ export function ElementInspector({
             </div>
           </div>
         ) : activeTab === "props" && selectedElement ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* Left: Text Content Editor */}
-            <div className="space-y-2 bg-zinc-900 p-3 rounded-xl border border-zinc-800/80">
-              <div className="flex items-center justify-between">
-                <Label className="text-zinc-300 font-medium flex items-center gap-1.5">
-                  <Type size={13} className="text-blue-400" /> Inner Text
-                </Label>
+          <div className="space-y-3">
+            {/* Top row: Inner Text Editor + Quick Child Adder */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+              {/* Text Content Editor */}
+              <div className="space-y-2 bg-zinc-900 p-3 rounded-xl border border-zinc-800/80">
+                <div className="flex items-center justify-between">
+                  <Label className="text-zinc-300 font-medium flex items-center gap-1.5 text-xs">
+                    <Type size={13} className="text-blue-400" /> Inner Text Content
+                  </Label>
+                  <Button
+                    size="sm"
+                    onClick={handleUpdateText}
+                    className="h-6 px-2 text-[11px] bg-blue-600 hover:bg-blue-500 text-white rounded font-medium"
+                  >
+                    <Check size={11} className="mr-1" /> Apply Text
+                  </Button>
+                </div>
+                <textarea
+                  value={editText}
+                  onChange={(e) => setEditText(e.target.value)}
+                  placeholder="Element inner text content..."
+                  className="w-full h-20 bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs font-mono text-zinc-200 focus:outline-none focus:border-blue-500 resize-none"
+                />
+              </div>
+
+              {/* Add Child Element */}
+              <div className="space-y-2 bg-zinc-900 p-3 rounded-xl border border-zinc-800/80 flex flex-col justify-between">
+                <div>
+                  <Label className="text-zinc-300 font-medium flex items-center gap-1.5 text-xs mb-2">
+                    <Plus size={13} className="text-emerald-400" /> Add Child Element
+                  </Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    <div>
+                      <Label className="text-[10px] text-zinc-500">Tag Type</Label>
+                      <select
+                        value={newTagToAdd}
+                        onChange={(e) => setNewTagToAdd(e.target.value)}
+                        className="w-full h-7 bg-zinc-950 border border-zinc-800 rounded-lg px-2 text-xs text-zinc-200 focus:outline-none"
+                      >
+                        <option value="button">Button (&lt;button&gt;)</option>
+                        <option value="p">Paragraph (&lt;p&gt;)</option>
+                        <option value="h2">Heading (&lt;h2&gt;)</option>
+                        <option value="div">Container (&lt;div&gt;)</option>
+                        <option value="span">Span (&lt;span&gt;)</option>
+                        <option value="a">Link (&lt;a&gt;)</option>
+                        <option value="input">Input (&lt;input&gt;)</option>
+                      </select>
+                    </div>
+                    <div>
+                      <Label className="text-[10px] text-zinc-500">Initial Text</Label>
+                      <Input
+                        value={newTagText}
+                        onChange={(e) => setNewTagText(e.target.value)}
+                        className="h-7 bg-zinc-950 border-zinc-800 text-xs rounded-lg"
+                      />
+                    </div>
+                  </div>
+                </div>
                 <Button
-                  size="sm"
-                  onClick={handleUpdateText}
-                  className="h-6 px-2 text-[11px] bg-blue-600 hover:bg-blue-500 text-white rounded"
+                  onClick={handleInsertChild}
+                  className="w-full h-7 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs rounded-lg mt-1 font-medium"
                 >
-                  <Check size={11} className="mr-1" /> Apply Text
+                  <Plus size={13} className="mr-1.5" /> Append inside &lt;{selectedElement.tagName}&gt;
                 </Button>
               </div>
-              <textarea
-                value={editText}
-                onChange={(e) => setEditText(e.target.value)}
-                placeholder="Element inner text content..."
-                className="w-full h-20 bg-zinc-950 border border-zinc-800 rounded-lg p-2 text-xs font-mono text-zinc-200 focus:outline-none focus:border-blue-500 resize-none"
-              />
             </div>
 
-            {/* Right: Quick Insert Child Element */}
-            <div className="space-y-2 bg-zinc-900 p-3 rounded-xl border border-zinc-800/80">
-              <Label className="text-zinc-300 font-medium flex items-center gap-1.5">
-                <Plus size={13} className="text-emerald-400" /> Add Child Element
-              </Label>
-              <div className="grid grid-cols-2 gap-2">
-                <div>
-                  <Label className="text-[10px] text-zinc-500">Tag Type</Label>
-                  <select
-                    value={newTagToAdd}
-                    onChange={(e) => setNewTagToAdd(e.target.value)}
-                    className="w-full h-8 bg-zinc-950 border border-zinc-800 rounded-lg px-2 text-xs text-zinc-200 focus:outline-none"
-                  >
-                    <option value="button">Button (&lt;button&gt;)</option>
-                    <option value="p">Paragraph (&lt;p&gt;)</option>
-                    <option value="h2">Heading (&lt;h2&gt;)</option>
-                    <option value="div">Container (&lt;div&gt;)</option>
-                    <option value="span">Span (&lt;span&gt;)</option>
-                    <option value="a">Link (&lt;a&gt;)</option>
-                    <option value="input">Input (&lt;input&gt;)</option>
-                  </select>
+            {/* Comprehensive Typography & Font Family Formatting Panel */}
+            <div className="bg-zinc-900 p-3 rounded-xl border border-zinc-800/80 space-y-3">
+              <div className="flex items-center justify-between pb-1 border-b border-zinc-800">
+                <Label className="text-xs font-semibold text-emerald-400 flex items-center gap-1.5">
+                  <Baseline size={14} /> Smart Typography & Font Formatting
+                </Label>
+                <span className="text-[10px] text-zinc-500 font-mono">
+                  &lt;{selectedElement.tagName}&gt; styles
+                </span>
+              </div>
+
+              {/* Row 1: Font Family, Font Size & Font Weight */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                {/* Font Family Selector */}
+                <div className="sm:col-span-2 space-y-1">
+                  <Label className="text-[11px] text-zinc-400 block">Font Family</Label>
+                  <div className="flex gap-1.5">
+                    <select
+                      value={fontFamily}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFontFamily(val);
+                        handleUpdateStyleProperty("fontFamily", val);
+                      }}
+                      className="flex-1 h-7 bg-zinc-950 border border-zinc-800 rounded-lg px-2 text-xs text-zinc-200 focus:outline-none focus:border-emerald-500"
+                    >
+                      <optgroup label="Popular Modern Sans (Google)">
+                        <option value="Inter, sans-serif">Inter</option>
+                        <option value="Roboto, sans-serif">Roboto</option>
+                        <option value="'Open Sans', sans-serif">Open Sans</option>
+                        <option value="Montserrat, sans-serif">Montserrat</option>
+                        <option value="Poppins, sans-serif">Poppins</option>
+                        <option value="Lato, sans-serif">Lato</option>
+                        <option value="'Plus Jakarta Sans', sans-serif">Plus Jakarta Sans</option>
+                        <option value="Nunito, sans-serif">Nunito</option>
+                        <option value="Raleway, sans-serif">Raleway</option>
+                        <option value="Ubuntu, sans-serif">Ubuntu</option>
+                        <option value="'Work Sans', sans-serif">Work Sans</option>
+                        <option value="'DM Sans', sans-serif">DM Sans</option>
+                        <option value="'Space Grotesk', sans-serif">Space Grotesk</option>
+                        <option value="Syne, sans-serif">Syne</option>
+                        <option value="Oswald, sans-serif">Oswald</option>
+                        <option value="system-ui, -apple-system, sans-serif">System Sans-Serif</option>
+                      </optgroup>
+                      <optgroup label="Serif & Editorial (Google)">
+                        <option value="'Playfair Display', serif">Playfair Display</option>
+                        <option value="Merriweather, serif">Merriweather</option>
+                        <option value="Lora, serif">Lora</option>
+                        <option value="'PT Serif', serif">PT Serif</option>
+                        <option value="'Cormorant Garamond', serif">Cormorant Garamond</option>
+                        <option value="Cinzel, serif">Cinzel</option>
+                        <option value="Georgia, serif">Georgia</option>
+                      </optgroup>
+                      <optgroup label="Code & Monospace (Google)">
+                        <option value="'JetBrains Mono', monospace">JetBrains Mono</option>
+                        <option value="'Fira Code', monospace">Fira Code</option>
+                        <option value="'Roboto Mono', monospace">Roboto Mono</option>
+                        <option value="'Source Code Pro', monospace">Source Code Pro</option>
+                        <option value="'Space Mono', monospace">Space Mono</option>
+                        <option value="ui-monospace, SFMono-Regular, Consolas, monospace">System Monospace</option>
+                      </optgroup>
+                      <optgroup label="Display & Creative (Google)">
+                        <option value="'Bebas Neue', sans-serif">Bebas Neue</option>
+                        <option value="Pacifico, cursive">Pacifico</option>
+                        <option value="Caveat, cursive">Caveat</option>
+                        <option value="'Dancing Script', cursive">Dancing Script</option>
+                        <option value="Lobster, cursive">Lobster</option>
+                        <option value="'Press Start 2P', display">Press Start 2P (8-Bit)</option>
+                      </optgroup>
+                    </select>
+                    <Input
+                      value={fontFamily}
+                      onChange={(e) => {
+                        const val = e.target.value;
+                        setFontFamily(val);
+                        handleUpdateStyleProperty("fontFamily", val);
+                      }}
+                      placeholder="Custom font..."
+                      className="w-32 h-7 bg-zinc-950 border-zinc-800 text-xs font-mono rounded-lg"
+                    />
+                  </div>
                 </div>
-                <div>
-                  <Label className="text-[10px] text-zinc-500">Initial Text</Label>
+
+                {/* Font Size */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-zinc-400 block">Font Size</Label>
                   <Input
-                    value={newTagText}
-                    onChange={(e) => setNewTagText(e.target.value)}
-                    className="h-8 bg-zinc-950 border-zinc-800 text-xs rounded-lg"
+                    value={fontSize}
+                    onChange={(e) => {
+                      setFontSize(e.target.value);
+                      handleUpdateStyleProperty("fontSize", e.target.value);
+                    }}
+                    placeholder="16px"
+                    className="h-7 bg-zinc-950 border-zinc-800 text-xs rounded-lg"
                   />
                 </div>
+
+                {/* Font Weight */}
+                <div className="space-y-1">
+                  <Label className="text-[11px] text-zinc-400 block">Font Weight</Label>
+                  <select
+                    value={fontWeight}
+                    onChange={(e) => {
+                      setFontWeight(e.target.value);
+                      handleUpdateStyleProperty("fontWeight", e.target.value);
+                    }}
+                    className="w-full h-7 bg-zinc-950 border border-zinc-800 rounded-lg px-2 text-xs text-zinc-200 focus:outline-none"
+                  >
+                    <option value="300">Light (300)</option>
+                    <option value="400">Regular (400)</option>
+                    <option value="500">Medium (500)</option>
+                    <option value="600">Semibold (600)</option>
+                    <option value="700">Bold (700)</option>
+                    <option value="800">Extra Bold (800)</option>
+                    <option value="900">Black (900)</option>
+                  </select>
+                </div>
               </div>
-              <Button
-                onClick={handleInsertChild}
-                className="w-full h-7 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs rounded-lg mt-1"
-              >
-                <Plus size={13} className="mr-1.5" /> Append inside &lt;{selectedElement.tagName}&gt;
-              </Button>
+
+              {/* Quick Font Size Presets */}
+              <div className="flex items-center gap-1 overflow-x-auto no-scrollbar">
+                <span className="text-[10px] text-zinc-500 shrink-0 font-medium mr-1">Quick Size:</span>
+                {["12px", "14px", "16px", "18px", "20px", "24px", "32px", "48px"].map((sz) => (
+                  <button
+                    key={sz}
+                    onClick={() => {
+                      setFontSize(sz);
+                      handleUpdateStyleProperty("fontSize", sz);
+                    }}
+                    className={`px-2 py-0.5 rounded text-[10px] font-mono shrink-0 transition-colors ${
+                      fontSize === sz
+                        ? "bg-emerald-600 text-white font-bold"
+                        : "bg-zinc-950 text-zinc-400 hover:text-white border border-zinc-800"
+                    }`}
+                  >
+                    {sz}
+                  </button>
+                ))}
+              </div>
+
+              {/* Row 2: Line Height, Letter Spacing, Case, Align, Format & Color */}
+              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3 pt-1">
+                {/* Line Height */}
+                <div>
+                  <Label className="text-[11px] text-zinc-400 mb-1 block">Line Height</Label>
+                  <select
+                    value={lineHeight}
+                    onChange={(e) => {
+                      setLineHeight(e.target.value);
+                      handleUpdateStyleProperty("lineHeight", e.target.value);
+                    }}
+                    className="w-full h-7 bg-zinc-950 border border-zinc-800 rounded-lg px-2 text-xs text-zinc-200 focus:outline-none"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="1">1 (Tight)</option>
+                    <option value="1.25">1.25 (Snug)</option>
+                    <option value="1.5">1.5 (Relaxed)</option>
+                    <option value="1.75">1.75 (Wide)</option>
+                    <option value="2">2 (Double)</option>
+                  </select>
+                </div>
+
+                {/* Letter Spacing */}
+                <div>
+                  <Label className="text-[11px] text-zinc-400 mb-1 block">Tracking</Label>
+                  <select
+                    value={letterSpacing}
+                    onChange={(e) => {
+                      setLetterSpacing(e.target.value);
+                      handleUpdateStyleProperty("letterSpacing", e.target.value);
+                    }}
+                    className="w-full h-7 bg-zinc-950 border border-zinc-800 rounded-lg px-2 text-xs text-zinc-200 focus:outline-none"
+                  >
+                    <option value="normal">Normal</option>
+                    <option value="-0.05em">Tight (-0.05em)</option>
+                    <option value="0.025em">Wide (0.025em)</option>
+                    <option value="0.05em">Wider (0.05em)</option>
+                    <option value="0.1em">Widest (0.1em)</option>
+                  </select>
+                </div>
+
+                {/* Text Transform */}
+                <div>
+                  <Label className="text-[11px] text-zinc-400 mb-1 block">Case</Label>
+                  <select
+                    value={textTransform}
+                    onChange={(e) => {
+                      setTextTransform(e.target.value);
+                      handleUpdateStyleProperty("textTransform", e.target.value);
+                    }}
+                    className="w-full h-7 bg-zinc-950 border border-zinc-800 rounded-lg px-2 text-xs text-zinc-200 focus:outline-none"
+                  >
+                    <option value="none">None</option>
+                    <option value="uppercase">UPPERCASE</option>
+                    <option value="lowercase">lowercase</option>
+                    <option value="capitalize">Capitalize</option>
+                  </select>
+                </div>
+
+                {/* Alignment */}
+                <div>
+                  <Label className="text-[11px] text-zinc-400 mb-1 block">Alignment</Label>
+                  <div className="flex bg-zinc-950 rounded-lg border border-zinc-800 p-0.5 gap-0.5">
+                    {(["left", "center", "right", "justify"] as const).map((align) => (
+                      <button
+                        key={align}
+                        onClick={() => {
+                          setTextAlign(align);
+                          handleUpdateStyleProperty("textAlign", align);
+                        }}
+                        className={`flex-1 h-6 flex items-center justify-center rounded text-xs transition-colors ${
+                          textAlign === align ? "bg-zinc-800 text-white" : "text-zinc-500 hover:text-zinc-300"
+                        }`}
+                      >
+                        {align === "left" && <AlignLeft size={11} />}
+                        {align === "center" && <AlignCenter size={11} />}
+                        {align === "right" && <AlignRight size={11} />}
+                        {align === "justify" && <AlignJustify size={11} />}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Format Toggles */}
+                <div>
+                  <Label className="text-[11px] text-zinc-400 mb-1 block">Format</Label>
+                  <div className="flex bg-zinc-950 rounded-lg border border-zinc-800 p-0.5 gap-0.5">
+                    <button
+                      onClick={() => {
+                        const next = fontWeight === "700" || fontWeight === "bold" ? "400" : "700";
+                        setFontWeight(next);
+                        handleUpdateStyleProperty("fontWeight", next);
+                      }}
+                      className={`flex-1 h-6 flex items-center justify-center rounded transition-colors ${
+                        fontWeight === "700" || fontWeight === "bold" ? "bg-emerald-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                      }`}
+                      title="Bold"
+                    >
+                      <Bold size={11} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const next = fontStyle === "italic" ? "normal" : "italic";
+                        setFontStyle(next);
+                        handleUpdateStyleProperty("fontStyle", next);
+                      }}
+                      className={`flex-1 h-6 flex items-center justify-center rounded transition-colors ${
+                        fontStyle === "italic" ? "bg-emerald-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                      }`}
+                      title="Italic"
+                    >
+                      <Italic size={11} />
+                    </button>
+                    <button
+                      onClick={() => {
+                        const next = textDecoration.includes("underline") ? "none" : "underline";
+                        setTextDecoration(next);
+                        handleUpdateStyleProperty("textDecoration", next);
+                      }}
+                      className={`flex-1 h-6 flex items-center justify-center rounded transition-colors ${
+                        textDecoration.includes("underline") ? "bg-emerald-600 text-white" : "text-zinc-500 hover:text-zinc-300"
+                      }`}
+                      title="Underline"
+                    >
+                      <Underline size={11} />
+                    </button>
+                  </div>
+                </div>
+
+                {/* Text Color */}
+                <div>
+                  <Label className="text-[11px] text-zinc-400 mb-1 block">Text Color</Label>
+                  <div className="flex items-center gap-1">
+                    <input
+                      type="color"
+                      value={textColor}
+                      onChange={(e) => {
+                        setTextColor(e.target.value);
+                        handleUpdateStyleProperty("color", e.target.value);
+                      }}
+                      className="w-6 h-6 rounded border-none bg-transparent cursor-pointer shrink-0"
+                    />
+                    <Input
+                      value={textColor}
+                      onChange={(e) => {
+                        setTextColor(e.target.value);
+                        handleUpdateStyleProperty("color", e.target.value);
+                      }}
+                      className="h-7 bg-zinc-950 border-zinc-800 text-[11px] font-mono uppercase rounded-lg"
+                    />
+                  </div>
+                </div>
+              </div>
             </div>
           </div>
         ) : activeTab === "styles" && selectedElement ? (

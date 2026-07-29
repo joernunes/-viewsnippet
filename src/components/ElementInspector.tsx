@@ -44,6 +44,7 @@ import {
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { GoogleFontsModal } from "./GoogleFontsModal";
 
 export interface SelectedElementData {
   index: number;
@@ -604,6 +605,7 @@ export function ElementInspector({
   const [borderRadius, setBorderRadius] = useState("");
   const [textAlign, setTextAlign] = useState("left");
   const [customStyle, setCustomStyle] = useState("");
+  const [isFontsModalOpen, setIsFontsModalOpen] = useState(false);
 
   // Add Child state
   const [newTagToAdd, setNewTagToAdd] = useState("button");
@@ -1797,7 +1799,16 @@ export function ElementInspector({
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
                 {/* Font Family Selector */}
                 <div className="sm:col-span-2 space-y-1">
-                  <Label className="text-[11px] text-zinc-400 block">Font Family</Label>
+                  <div className="flex items-center justify-between">
+                    <Label className="text-[11px] text-zinc-400 block">Font Family</Label>
+                    <button
+                      type="button"
+                      onClick={() => setIsFontsModalOpen(true)}
+                      className="text-[10px] text-cyan-400 hover:text-cyan-300 hover:underline flex items-center gap-1 font-medium"
+                    >
+                      <Type size={11} /> Explore Google Fonts
+                    </button>
+                  </div>
                   <div className="flex gap-1.5">
                     <select
                       value={fontFamily}
@@ -2397,6 +2408,21 @@ export function ElementInspector({
       </div>
         </>
       )}
+      <GoogleFontsModal
+        isOpen={isFontsModalOpen}
+        onClose={() => setIsFontsModalOpen(false)}
+        onApplyFontToSelectedElement={(family) => {
+          setFontFamily(family);
+          handleUpdateStyleProperty("fontFamily", family);
+        }}
+        onInjectFontToCode={(linkTag) => {
+          if (code.includes("<head>")) {
+            onCodeChange?.(code.replace("<head>", `<head>\n  ${linkTag}`));
+          } else {
+            onCodeChange?.(`${linkTag}\n${code}`);
+          }
+        }}
+      />
     </div>
   );
 }

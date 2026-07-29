@@ -29,12 +29,15 @@ import {
   PanelLeft,
   PanelRight,
   Terminal,
+  Type,
 } from "lucide-react";
 import { ElementInspector, INSPECTOR_INJECT_SCRIPT } from "../components/ElementInspector";
 import { DevToolsSuite, DEVTOOLS_INJECT_SCRIPT } from "../components/DevToolsSuite";
 import { CodeDXSuite } from "../components/CodeDXSuite";
 import { ShortcutsModal } from "../components/ShortcutsModal";
 import { DownloadModal } from "../components/DownloadModal";
+import { GoogleFontsModal } from "../components/GoogleFontsModal";
+import { GOOGLE_FONTS_PRELOAD_LINK } from "../lib/fonts";
 import { format } from "date-fns";
 import { saveRecentSnippet } from "../lib/history";
 import { toast } from "sonner";
@@ -68,6 +71,7 @@ export function ViewSnippet() {
   const [isDevToolsOpen, setIsDevToolsOpen] = useState(false);
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
+  const [isFontsOpen, setIsFontsOpen] = useState(false);
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const monacoEditorRef = useRef<any>(null);
 
@@ -77,7 +81,7 @@ export function ViewSnippet() {
   const srcDocTimerRef = useRef<any>(null);
 
   const buildSrcDoc = (targetCode: string, targetLang: string) => {
-    const googleFontsLink = `<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link href="https://fonts.googleapis.com/css2?family=Bebas+Neue&family=Caveat:wght@400..700&family=Cinzel:wght@400..700&family=Cormorant+Garamond:ital,wght@0,400..700;1,400..700&family=Dancing+Script:wght@400..700&family=Fira+Code:wght@300..700&family=Inter:wght@300..900&family=JetBrains+Mono:ital,wght@0,300..800;1,300..800&family=Lato:ital,wght@0,300..900;1,300..900&family=Lobster&family=Lora:ital,wght@0,400..700;1,400..700&family=Merriweather:ital,wght@0,300..900;1,300..900&family=Montserrat:ital,wght@0,300..900;1,300..900&family=Nunito:ital,wght@0,300..1000;1,300..1000&family=Open+Sans:ital,wght@0,300..800;1,300..800&family=Oswald:wght@300..700&family=Pacifico&family=Playfair+Display:ital,wght@0,400..900;1,400..900&family=Plus+Jakarta+Sans:ital,wght@0,300..800;1,300..800&family=Poppins:ital,wght@0,300..900;1,300..900&family=Press+Start+2P&family=PT+Serif:ital,wght@0,400;0,700;1,400;1,700&family=Raleway:ital,wght@0,300..900;1,300..900&family=Roboto+Mono:ital,wght@0,300..700;1,300..700&family=Roboto:ital,wght@0,300..900;1,300..900&family=Source+Code+Pro:ital,wght@0,300..900;1,300..900&family=Space+Grotesk:wght@300..700&family=Space+Mono:ital,wght@0,400;0,700;1,400;1,700&family=Syne:wght@400..800&family=Ubuntu:ital,wght@0,300..700;1,300..700&family=Work+Sans:ital,wght@0,300..900;1,300..900&display=swap" rel="stylesheet">`;
+    const googleFontsLink = GOOGLE_FONTS_PRELOAD_LINK;
     const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}`;
     if (targetLang === "html") {
       if (targetCode.includes("<head>")) {
@@ -663,6 +667,22 @@ export function ViewSnippet() {
               <TooltipTrigger
                 render={
                   <Button
+                    onClick={() => setIsFontsOpen(true)}
+                    variant="outline"
+                    className="h-8 rounded-md px-3 shadow-none bg-zinc-900 border-zinc-700 text-xs text-zinc-200 hover:text-white hover:bg-zinc-800 gap-1.5"
+                  >
+                    <Type size={13} className="text-cyan-400" />
+                    Fonts
+                  </Button>
+                }
+              />
+              <TooltipContent>Explore & Live Preview Google Fonts</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
                     onClick={() => setIsDownloadOpen(true)}
                     variant="outline"
                     className="h-8 rounded-md px-3 shadow-none bg-zinc-900 border-zinc-700 text-xs text-zinc-200 hover:text-white hover:bg-zinc-800 gap-1.5"
@@ -937,6 +957,21 @@ export function ViewSnippet() {
           title={snippet.title || "snippet"}
         />
       )}
+      <GoogleFontsModal
+        isOpen={isFontsOpen}
+        onClose={() => setIsFontsOpen(false)}
+        onInjectFontToCode={(linkTag) => {
+          if (snippet && snippet.code) {
+            let updated = snippet.code;
+            if (updated.includes("<head>")) {
+              updated = updated.replace("<head>", `<head>\n  ${linkTag}`);
+            } else {
+              updated = `${linkTag}\n${updated}`;
+            }
+            setSnippet({ ...snippet, code: updated });
+          }
+        }}
+      />
     </div>
   );
 }

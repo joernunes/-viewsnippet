@@ -404,16 +404,24 @@ export const INSPECTOR_INJECT_SCRIPT = `
       const el = getElementByIndex(msg.index);
       if (el) {
         if (msg.margin) {
-          el.style.marginTop = msg.margin.top + 'px';
-          el.style.marginRight = msg.margin.right + 'px';
-          el.style.marginBottom = msg.margin.bottom + 'px';
-          el.style.marginLeft = msg.margin.left + 'px';
+          const clampM = function(v) {
+            const num = parseFloat(v) || 0;
+            return Math.max(-100, Math.min(200, num));
+          };
+          el.style.marginTop = clampM(msg.margin.top) + 'px';
+          el.style.marginRight = clampM(msg.margin.right) + 'px';
+          el.style.marginBottom = clampM(msg.margin.bottom) + 'px';
+          el.style.marginLeft = clampM(msg.margin.left) + 'px';
         }
         if (msg.padding) {
-          el.style.paddingTop = msg.padding.top + 'px';
-          el.style.paddingRight = msg.padding.right + 'px';
-          el.style.paddingBottom = msg.padding.bottom + 'px';
-          el.style.paddingLeft = msg.padding.left + 'px';
+          const clampP = function(v) {
+            const num = parseFloat(v) || 0;
+            return Math.max(0, Math.min(300, num));
+          };
+          el.style.paddingTop = clampP(msg.padding.top) + 'px';
+          el.style.paddingRight = clampP(msg.padding.right) + 'px';
+          el.style.paddingBottom = clampP(msg.padding.bottom) + 'px';
+          el.style.paddingLeft = clampP(msg.padding.left) + 'px';
         }
         highlightElement(el, false);
         sendSerializedHtml();
@@ -512,6 +520,22 @@ export const INSPECTOR_INJECT_SCRIPT = `
 })();
 </script>
 `;
+
+// Bounds & Limits for Box Model Margins and Padding
+const MIN_MARGIN = -100;
+const MAX_MARGIN = 200;
+const MIN_PADDING = 0;
+const MAX_PADDING = 300;
+
+const clampMargin = (val: number) => {
+  if (isNaN(val)) return 0;
+  return Math.max(MIN_MARGIN, Math.min(MAX_MARGIN, val));
+};
+
+const clampPadding = (val: number) => {
+  if (isNaN(val)) return 0;
+  return Math.max(MIN_PADDING, Math.min(MAX_PADDING, val));
+};
 
 export function ElementInspector({
   iframeRef,
@@ -738,11 +762,23 @@ export function ElementInspector({
 
   const handleApplyBoxModel = (newMargin = marginBox, newPadding = paddingBox) => {
     if (!selectedElement) return;
+    const clampedMargin = {
+      top: clampMargin(newMargin.top),
+      right: clampMargin(newMargin.right),
+      bottom: clampMargin(newMargin.bottom),
+      left: clampMargin(newMargin.left),
+    };
+    const clampedPadding = {
+      top: clampPadding(newPadding.top),
+      right: clampPadding(newPadding.right),
+      bottom: clampPadding(newPadding.bottom),
+      left: clampPadding(newPadding.left),
+    };
     sendIframeMessage({
       type: "APPLY_BOX_MODEL",
       index: selectedElement.index,
-      margin: newMargin,
-      padding: newPadding,
+      margin: clampedMargin,
+      padding: clampedPadding,
     });
   };
 
@@ -1244,9 +1280,12 @@ export function ElementInspector({
                 <div className="flex justify-center mb-1.5">
                   <Input
                     type="number"
+                    min={MIN_MARGIN}
+                    max={MAX_MARGIN}
                     value={marginBox.top}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
+                      const raw = parseInt(e.target.value);
+                      const val = clampMargin(isNaN(raw) ? 0 : raw);
                       const next = isMarginLinked
                         ? { top: val, right: val, bottom: val, left: val }
                         : { ...marginBox, top: val };
@@ -1261,9 +1300,12 @@ export function ElementInspector({
                   {/* Left Margin Input */}
                   <Input
                     type="number"
+                    min={MIN_MARGIN}
+                    max={MAX_MARGIN}
                     value={marginBox.left}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
+                      const raw = parseInt(e.target.value);
+                      const val = clampMargin(isNaN(raw) ? 0 : raw);
                       const next = isMarginLinked
                         ? { top: val, right: val, bottom: val, left: val }
                         : { ...marginBox, left: val };
@@ -1298,9 +1340,12 @@ export function ElementInspector({
                       <div className="flex justify-center mb-1">
                         <Input
                           type="number"
+                          min={MIN_PADDING}
+                          max={MAX_PADDING}
                           value={paddingBox.top}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value) || 0;
+                            const raw = parseInt(e.target.value);
+                            const val = clampPadding(isNaN(raw) ? 0 : raw);
                             const next = isPaddingLinked
                               ? { top: val, right: val, bottom: val, left: val }
                               : { ...paddingBox, top: val };
@@ -1315,9 +1360,12 @@ export function ElementInspector({
                         {/* Left Padding Input */}
                         <Input
                           type="number"
+                          min={MIN_PADDING}
+                          max={MAX_PADDING}
                           value={paddingBox.left}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value) || 0;
+                            const raw = parseInt(e.target.value);
+                            const val = clampPadding(isNaN(raw) ? 0 : raw);
                             const next = isPaddingLinked
                               ? { top: val, right: val, bottom: val, left: val }
                               : { ...paddingBox, left: val };
@@ -1336,9 +1384,12 @@ export function ElementInspector({
                         {/* Right Padding Input */}
                         <Input
                           type="number"
+                          min={MIN_PADDING}
+                          max={MAX_PADDING}
                           value={paddingBox.right}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value) || 0;
+                            const raw = parseInt(e.target.value);
+                            const val = clampPadding(isNaN(raw) ? 0 : raw);
                             const next = isPaddingLinked
                               ? { top: val, right: val, bottom: val, left: val }
                               : { ...paddingBox, right: val };
@@ -1353,9 +1404,12 @@ export function ElementInspector({
                       <div className="flex justify-center mt-1">
                         <Input
                           type="number"
+                          min={MIN_PADDING}
+                          max={MAX_PADDING}
                           value={paddingBox.bottom}
                           onChange={(e) => {
-                            const val = parseInt(e.target.value) || 0;
+                            const raw = parseInt(e.target.value);
+                            const val = clampPadding(isNaN(raw) ? 0 : raw);
                             const next = isPaddingLinked
                               ? { top: val, right: val, bottom: val, left: val }
                               : { ...paddingBox, bottom: val };
@@ -1371,9 +1425,12 @@ export function ElementInspector({
                   {/* Right Margin Input */}
                   <Input
                     type="number"
+                    min={MIN_MARGIN}
+                    max={MAX_MARGIN}
                     value={marginBox.right}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
+                      const raw = parseInt(e.target.value);
+                      const val = clampMargin(isNaN(raw) ? 0 : raw);
                       const next = isMarginLinked
                         ? { top: val, right: val, bottom: val, left: val }
                         : { ...marginBox, right: val };
@@ -1388,9 +1445,12 @@ export function ElementInspector({
                 <div className="flex justify-center mt-1.5">
                   <Input
                     type="number"
+                    min={MIN_MARGIN}
+                    max={MAX_MARGIN}
                     value={marginBox.bottom}
                     onChange={(e) => {
-                      const val = parseInt(e.target.value) || 0;
+                      const raw = parseInt(e.target.value);
+                      const val = clampMargin(isNaN(raw) ? 0 : raw);
                       const next = isMarginLinked
                         ? { top: val, right: val, bottom: val, left: val }
                         : { ...marginBox, bottom: val };

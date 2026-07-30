@@ -33,6 +33,8 @@ import {
 } from "lucide-react";
 import { ElementInspector, INSPECTOR_INJECT_SCRIPT } from "../components/ElementInspector";
 import { DevToolsSuite, DEVTOOLS_INJECT_SCRIPT } from "../components/DevToolsSuite";
+import { PREVIEW_ROUTER_INJECT_SCRIPT } from "../lib/previewRouter";
+import { PreviewAddressBar } from "../components/PreviewAddressBar";
 import { CodeDXSuite } from "../components/CodeDXSuite";
 import { ShortcutsModal } from "../components/ShortcutsModal";
 import { DownloadModal } from "../components/DownloadModal";
@@ -72,8 +74,27 @@ export function ViewSnippet() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isFontsOpen, setIsFontsOpen] = useState(false);
+  const [previewCurrentPath, setPreviewCurrentPath] = useState<string>("/");
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const monacoEditorRef = useRef<any>(null);
+
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data && event.data.source === "preview-router") {
+        if (event.data.type === "PREVIEW_NAV_CHANGE") {
+          setPreviewCurrentPath(event.data.path || "/");
+        } else if (event.data.type === "PREVIEW_NAV_TOAST") {
+          if (event.data.toastType === "info") {
+            toast.info(event.data.text);
+          } else {
+            toast.success(event.data.text);
+          }
+        }
+      }
+    };
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, []);
 
   // Skip iframe reload ref for live element inspector updates
   const skipIframeReloadRef = useRef<boolean>(false);
@@ -82,7 +103,7 @@ export function ViewSnippet() {
 
   const buildSrcDoc = (targetCode: string, targetLang: string) => {
     const googleFontsLink = GOOGLE_FONTS_PRELOAD_LINK;
-    const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}`;
+    const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}\n${PREVIEW_ROUTER_INJECT_SCRIPT}`;
     if (targetLang === "html") {
       if (targetCode.includes("<head>")) {
         return targetCode.replace("<head>", `<head>\n${googleFontsLink}`).replace("</body>", `${combinedScript}\n</body>`);
@@ -834,20 +855,18 @@ export function ViewSnippet() {
                     }`}
                   >
                     {previewDevice === "desktop" && (
-                      <div className="h-12 bg-zinc-900 border-b border-zinc-800 flex items-center px-4 gap-4 shrink-0">
-                        <div className="flex gap-2">
-                          <div className="w-3 h-3 rounded-full bg-red-500/80"></div>
-                          <div className="w-3 h-3 rounded-full bg-yellow-500/80"></div>
-                          <div className="w-3 h-3 rounded-full bg-green-500/80"></div>
-                        </div>
-                        <div className="flex-1 flex justify-center">
-                          <div className="bg-zinc-950 text-zinc-400 text-xs px-4 py-1.5 rounded-md flex items-center gap-2 border border-zinc-800 w-full max-w-md justify-center shadow-inner">
-                            <Lock size={12} className="text-zinc-500" />
-                            <span>preview.localhost</span>
-                          </div>
-                        </div>
-                        <div className="w-12"></div>
-                      </div>
+                      <PreviewAddressBar
+                        iframeRef={iframeRef}
+                        currentPath={previewCurrentPath}
+                        setCurrentPath={setPreviewCurrentPath}
+                        onRefresh={() => {
+                          if (snippet) {
+                            setSrcDoc(buildSrcDoc(snippet.code, snippet.language));
+                            toast.success("Preview reloaded");
+                          }
+                        }}
+                        code={snippet?.code || ""}
+                      />
                     )}
                     {previewDevice === "iphone" && (
                       <div

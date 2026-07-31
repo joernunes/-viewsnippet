@@ -101,17 +101,66 @@ export function ViewSnippet() {
   const [srcDoc, setSrcDoc] = useState<string>("");
   const srcDocTimerRef = useRef<any>(null);
 
+  // External live site inspection state
+  const [externalSiteUrl, setExternalSiteUrl] = useState<string | null>(null);
+
+  const handleInspectExternalSite = async (url: string) => {
+    let target = url.trim();
+    if (!target) return;
+    if (!target.startsWith("http://") && !target.startsWith("https://")) {
+      target = "https://" + target;
+    }
+    try {
+      toast.info(`Carregando site ${target} para inspeção ao vivo...`);
+      const res = await fetch("/api/fetch-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: target }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao carregar o site");
+      }
+
+      updateSnippetCode(data.html);
+      setSnippet((prev: any) => (prev ? { ...prev, language: "html" } : prev));
+      setExternalSiteUrl(data.url);
+      setIsInspectMode(true);
+      toast.success(`Site ${data.url} carregado! O código atual foi substituído pelo HTML do site para inspeção.`);
+    } catch (err: any) {
+      toast.error(err.message || "Não foi possível carregar o site para inspeção.");
+    }
+  };
+
+  const handleClearExternalSite = () => {
+    setExternalSiteUrl(null);
+    toast.info("Status de site externo limpo.");
+  };
+
   const buildSrcDoc = (targetCode: string, targetLang: string) => {
     const googleFontsLink = GOOGLE_FONTS_PRELOAD_LINK;
     const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}\n${PREVIEW_ROUTER_INJECT_SCRIPT}`;
+
     if (targetLang === "html") {
-      if (targetCode.includes("<head>")) {
-        return targetCode.replace("<head>", `<head>\n${googleFontsLink}`).replace("</body>", `${combinedScript}\n</body>`);
+      let pageCode = targetCode;
+
+      if (/<head[^>]*>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<head[^>]*>)/i, `$1\n${googleFontsLink}`);
+      } else if (/<html[^>]*>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<html[^>]*>)/i, `$1\n<head>${googleFontsLink}</head>`);
+      } else {
+        pageCode = `${googleFontsLink}\n${pageCode}`;
       }
-      if (targetCode.includes("</body>")) {
-        return `${googleFontsLink}\n` + targetCode.replace("</body>", `${combinedScript}\n</body>`);
+
+      if (/<\/body>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<\/body>)/i, `${combinedScript}\n$1`);
+      } else if (/<\/html>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<\/html>)/i, `${combinedScript}\n$1`);
+      } else {
+        pageCode = pageCode + `\n${combinedScript}`;
       }
-      return `${googleFontsLink}\n${targetCode}\n${combinedScript}`;
+
+      return pageCode;
     }
     if (targetLang === "css") {
       return `
@@ -826,13 +875,16 @@ export function ViewSnippet() {
                     sandbox="allow-scripts allow-modals allow-forms allow-popups"
                   />
                 </div>
-                {(snippet.language === "html" || snippet.language === "css") && (
+                {(snippet.language === "html" || snippet.language === "css" || Boolean(externalSiteUrl)) && (
                   <ElementInspector
                     iframeRef={iframeRef}
                     code={snippet.code || ""}
                     onCodeChange={updateSnippetCode}
                     isInspectMode={isInspectMode}
                     setIsInspectMode={setIsInspectMode}
+                    externalSiteUrl={externalSiteUrl}
+                    onClearExternalSite={handleClearExternalSite}
+                    onInspectExternalSite={handleInspectExternalSite}
                   />
                 )}
               </div>
@@ -866,6 +918,14 @@ export function ViewSnippet() {
                           }
                         }}
                         code={snippet?.code || ""}
+                        externalSiteUrl={externalSiteUrl}
+                        onInspectExternalSite={handleInspectExternalSite}
+                        onClearExternalSite={handleClearExternalSite}
+                        onImportSite={(html) => {
+                          updateSnippetCode(html);
+                          setSnippet((prev: any) => (prev ? { ...prev, language: "html" } : prev));
+                          setIsInspectMode(true);
+                        }}
                       />
                     )}
                     {previewDevice === "iphone" && (
@@ -901,13 +961,16 @@ export function ViewSnippet() {
                     />
                   </div>
                 </div>
-                {(snippet.language === "html" || snippet.language === "css") && (
+                {(snippet.language === "html" || snippet.language === "css" || Boolean(externalSiteUrl)) && (
                   <ElementInspector
                     iframeRef={iframeRef}
                     code={snippet.code || ""}
                     onCodeChange={updateSnippetCode}
                     isInspectMode={isInspectMode}
                     setIsInspectMode={setIsInspectMode}
+                    externalSiteUrl={externalSiteUrl}
+                    onClearExternalSite={handleClearExternalSite}
+                    onInspectExternalSite={handleInspectExternalSite}
                   />
                 )}
               </div>

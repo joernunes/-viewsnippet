@@ -12,6 +12,13 @@ export const PREVIEW_ROUTER_INJECT_SCRIPT = `
 
   // Intercept all link clicks
   document.addEventListener('click', function(e) {
+    if (window.__isInspectMode || e.defaultPrevented) {
+      if (window.__isInspectMode) {
+        e.preventDefault();
+      }
+      return;
+    }
+
     let target = e.target;
     while (target && target !== document.body && target.tagName !== 'A') {
       target = target.parentElement;
@@ -170,7 +177,13 @@ export const PREVIEW_ROUTER_INJECT_SCRIPT = `
   // Listen to messages from parent
   window.addEventListener('message', function(event) {
     var data = event.data;
-    if (!data || data.target !== 'preview-iframe') return;
+    if (!data || typeof data !== 'object') return;
+
+    if (data.type === 'SET_INSPECT_MODE') {
+      window.__isInspectMode = !!data.enabled;
+    }
+
+    if (data.target !== 'preview-iframe') return;
 
     if (data.type === 'PREVIEW_NAV_GO_BACK') {
       window.history.back();

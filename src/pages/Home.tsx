@@ -142,18 +142,68 @@ export function Home() {
   // Skip iframe reload ref for live inspector updates
   const skipIframeReloadRef = useRef<boolean>(false);
 
+  // External live site inspection state
+  const [externalSiteUrl, setExternalSiteUrl] = useState<string | null>(null);
+
+  const handleInspectExternalSite = async (url: string) => {
+    let target = url.trim();
+    if (!target) return;
+    if (!target.startsWith("http://") && !target.startsWith("https://")) {
+      target = "https://" + target;
+    }
+    try {
+      toast.info(`Carregando site ${target} para inspeção ao vivo...`);
+      const res = await fetch("/api/fetch-url", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ url: target }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || "Falha ao carregar o site");
+      }
+
+      // Disregard local code & replace code editor content with fetched HTML
+      updateCode(data.html);
+      setLanguage("html");
+      setExternalSiteUrl(data.url);
+      setIsInspectMode(true);
+      toast.success(`Site ${data.url} carregado! O código atual foi substituído pelo HTML do site para inspeção.`);
+    } catch (err: any) {
+      toast.error(err.message || "Não foi possível carregar o site para inspeção.");
+    }
+  };
+
+  const handleClearExternalSite = () => {
+    setExternalSiteUrl(null);
+    toast.info("Status de site externo limpo.");
+  };
+
   // Helper to generate iframe srcDoc
   const getSrcDoc = (targetCode = code, targetLang = language) => {
     const googleFontsLink = GOOGLE_FONTS_PRELOAD_LINK;
     const combinedScript = `${INSPECTOR_INJECT_SCRIPT}\n${DEVTOOLS_INJECT_SCRIPT}\n${PREVIEW_ROUTER_INJECT_SCRIPT}`;
+
     if (targetLang === "html") {
-      if (targetCode.includes("<head>")) {
-        return targetCode.replace("<head>", `<head>\n${googleFontsLink}`).replace("</body>", `${combinedScript}\n</body>`);
+      let pageCode = targetCode;
+
+      if (/<head[^>]*>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<head[^>]*>)/i, `$1\n${googleFontsLink}`);
+      } else if (/<html[^>]*>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<html[^>]*>)/i, `$1\n<head>${googleFontsLink}</head>`);
+      } else {
+        pageCode = `${googleFontsLink}\n${pageCode}`;
       }
-      if (targetCode.includes("</body>")) {
-        return `${googleFontsLink}\n` + targetCode.replace("</body>", `${combinedScript}\n</body>`);
+
+      if (/<\/body>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<\/body>)/i, `${combinedScript}\n$1`);
+      } else if (/<\/html>/i.test(pageCode)) {
+        pageCode = pageCode.replace(/(<\/html>)/i, `${combinedScript}\n$1`);
+      } else {
+        pageCode = pageCode + `\n${combinedScript}`;
       }
-      return `${googleFontsLink}\n${targetCode}\n${combinedScript}`;
+
+      return pageCode;
     }
     if (targetLang === "css") {
       return `
@@ -432,13 +482,16 @@ export function Home() {
           sandbox="allow-scripts allow-modals allow-forms allow-popups"
         />
       </div>
-      {(language === "html" || language === "css") && (
+      {(language === "html" || language === "css" || Boolean(externalSiteUrl)) && (
         <ElementInspector
           iframeRef={iframeRef}
           code={code}
           onCodeChange={updateCode}
           isInspectMode={isInspectMode}
           setIsInspectMode={setIsInspectMode}
+          externalSiteUrl={externalSiteUrl}
+          onClearExternalSite={handleClearExternalSite}
+          onInspectExternalSite={handleInspectExternalSite}
         />
       )}
     </div>
@@ -470,6 +523,14 @@ export function Home() {
                 toast.success("Preview reloaded");
               }}
               code={code}
+              externalSiteUrl={externalSiteUrl}
+              onInspectExternalSite={handleInspectExternalSite}
+              onClearExternalSite={handleClearExternalSite}
+              onImportSite={(html, url) => {
+                updateCode(html);
+                setLanguage("html");
+                setIsInspectMode(true);
+              }}
             />
           )}
           {previewDevice === "iphone" && (
@@ -505,13 +566,16 @@ export function Home() {
           />
         </div>
       </div>
-      {(language === "html" || language === "css") && (
+      {(language === "html" || language === "css" || Boolean(externalSiteUrl)) && (
         <ElementInspector
           iframeRef={iframeRef}
           code={code}
           onCodeChange={updateCode}
           isInspectMode={isInspectMode}
           setIsInspectMode={setIsInspectMode}
+          externalSiteUrl={externalSiteUrl}
+          onClearExternalSite={handleClearExternalSite}
+          onInspectExternalSite={handleInspectExternalSite}
         />
       )}
     </div>

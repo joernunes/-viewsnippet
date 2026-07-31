@@ -187,6 +187,89 @@ export const SNIPPET_LIBRARY: CodeSnippetItem[] = [
   },
 ];
 
+export function splitCodeIntoHtmlCssJs(inputCode: string) {
+  let cssText = "";
+  let jsText = "";
+  let htmlText = inputCode;
+
+  // Extract <style> blocks
+  const styleRegex = /<style[^>]*>([\s\S]*?)<\/style>/gi;
+  let styleMatch;
+  const extractedStyles: string[] = [];
+  while ((styleMatch = styleRegex.exec(inputCode)) !== null) {
+    if (styleMatch[1] && styleMatch[1].trim()) {
+      extractedStyles.push(styleMatch[1].trim());
+    }
+  }
+  if (extractedStyles.length > 0) {
+    cssText = extractedStyles.join("\n\n");
+  }
+
+  // Extract <script> blocks
+  const scriptRegex = /<script[^>]*>([\s\S]*?)<\/script>/gi;
+  let scriptMatch;
+  const extractedScripts: string[] = [];
+  while ((scriptMatch = scriptRegex.exec(inputCode)) !== null) {
+    if (scriptMatch[1] && scriptMatch[1].trim()) {
+      extractedScripts.push(scriptMatch[1].trim());
+    }
+  }
+  if (extractedScripts.length > 0) {
+    jsText = extractedScripts.join("\n\n");
+  }
+
+  // Clean HTML markup (remove style & script tags)
+  htmlText = inputCode
+    .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, "")
+    .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, "")
+    .trim();
+
+  // Clean trailing/leading blank lines
+  htmlText = htmlText.replace(/^\s*[\r\n]/gm, "");
+
+  const combinedParts: string[] = [];
+
+  combinedParts.push(`<!-- ========================================== -->`);
+  combinedParts.push(`<!-- 📄 ESTRUTURA HTML                          -->`);
+  combinedParts.push(`<!-- ========================================== -->`);
+  combinedParts.push(htmlText || `<div><!-- Seu HTML aqui --></div>`);
+  combinedParts.push(``);
+
+  combinedParts.push(`<!-- ========================================== -->`);
+  combinedParts.push(`<!-- 🎨 ESTILOS CSS                             -->`);
+  combinedParts.push(`<!-- ========================================== -->`);
+  if (cssText) {
+    combinedParts.push(`<style>`);
+    combinedParts.push(cssText);
+    combinedParts.push(`</style>`);
+  } else {
+    combinedParts.push(`<style>`);
+    combinedParts.push(`/* Adicione seus estilos CSS personalizados aqui */`);
+    combinedParts.push(`</style>`);
+  }
+  combinedParts.push(``);
+
+  combinedParts.push(`<!-- ========================================== -->`);
+  combinedParts.push(`<!-- ⚡ LÓGICA JAVASCRIPT                       -->`);
+  combinedParts.push(`<!-- ========================================== -->`);
+  if (jsText) {
+    combinedParts.push(`<script>`);
+    combinedParts.push(jsText);
+    combinedParts.push(`</script>`);
+  } else {
+    combinedParts.push(`<script>`);
+    combinedParts.push(`// Adicione sua lógica JavaScript/TypeScript aqui`);
+    combinedParts.push(`</script>`);
+  }
+
+  return {
+    html: htmlText,
+    css: cssText,
+    js: jsText,
+    combined: combinedParts.join("\n"),
+  };
+}
+
 interface CodeDXSuiteProps {
   code: string;
   language: string;
@@ -203,6 +286,9 @@ export function CodeDXSuite({
   const [isSnippetsOpen, setIsSnippetsOpen] = useState(false);
   const [isAiRefactorOpen, setIsAiRefactorOpen] = useState(false);
   const [isDiffOpen, setIsDiffOpen] = useState(false);
+  const [isSeparatedModalOpen, setIsSeparatedModalOpen] = useState(false);
+  const [separatedData, setSeparatedData] = useState<{ html: string; css: string; js: string; combined: string } | null>(null);
+  const [activeSeparatedTab, setActiveSeparatedTab] = useState<"html" | "css" | "js" | "combined">("html");
   const [initialCodeSnapshot] = useState(code);
   const [searchQuery, setSearchQuery] = useState("");
   const [isRefactoring, setIsRefactoring] = useState(false);
@@ -257,6 +343,17 @@ export function CodeDXSuite({
     setIsRefactoring(true);
     setTimeout(() => {
       let result = code;
+
+      if (mode === "split_html_css_js") {
+        const resultData = splitCodeIntoHtmlCssJs(code);
+        onCodeChange(resultData.combined);
+        setSeparatedData(resultData);
+        setIsSeparatedModalOpen(true);
+        setIsRefactoring(false);
+        setIsAiRefactorOpen(false);
+        toast.success("Código separado com sucesso em HTML, CSS e JS!");
+        return;
+      }
 
       if (mode === "tailwind") {
         // Enhance HTML classes
@@ -434,6 +531,27 @@ export function CodeDXSuite({
 
           <div className="p-5 space-y-2.5">
             <button
+              onClick={() => handleAiRefactor("split_html_css_js")}
+              disabled={isRefactoring}
+              className="w-full p-3 bg-amber-500/10 border border-amber-500/30 hover:bg-amber-500/20 hover:border-amber-500/50 rounded-lg text-left flex items-start gap-3 transition-colors group"
+            >
+              <Layers size={16} className="text-amber-400 shrink-0 mt-0.5" />
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <span className="text-xs font-semibold text-amber-200 block">
+                    Separar Código (HTML, CSS e JS)
+                  </span>
+                  <span className="px-1.5 py-0.5 text-[9px] font-mono bg-amber-400/20 text-amber-300 border border-amber-400/30 rounded font-medium">
+                    Novo
+                  </span>
+                </div>
+                <span className="text-[11px] text-amber-300/80 block mt-0.5 leading-normal">
+                  Extrai o código atual e separa em blocos organizados de HTML, Estilos (&lt;style&gt;) e Scripts (&lt;script&gt;).
+                </span>
+              </div>
+            </button>
+
+            <button
               onClick={() => handleAiRefactor("tailwind")}
               disabled={isRefactoring}
               className="w-full p-3 bg-zinc-900/40 border border-zinc-800/80 hover:bg-zinc-900 hover:border-zinc-700 rounded-lg text-left flex items-start gap-3 transition-colors group"
@@ -488,6 +606,192 @@ export function CodeDXSuite({
                 </span>
               </div>
             </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* --- SEPARATED CODE VIEWER DIALOG --- */}
+      <Dialog open={isSeparatedModalOpen} onOpenChange={setIsSeparatedModalOpen}>
+        <DialogContent className="max-w-4xl w-[92vw] max-h-[85vh] bg-zinc-950 border border-zinc-800 text-zinc-100 p-0 rounded-xl shadow-2xl flex flex-col overflow-hidden">
+          <DialogHeader className="p-4 px-5 bg-zinc-900/60 border-b border-zinc-800/80 shrink-0">
+            <DialogTitle className="text-base font-semibold flex items-center gap-2 text-zinc-100">
+              <Layers size={16} className="text-amber-400" />
+              Código Separado (HTML, CSS & JS)
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400 text-xs mt-0.5">
+              Visualize, copie ou insira individualmente as seções extraídas de HTML, CSS e JavaScript.
+            </DialogDescription>
+          </DialogHeader>
+
+          {/* Tabs */}
+          <div className="flex items-center gap-2 px-5 py-2.5 bg-zinc-900/40 border-b border-zinc-800/80 shrink-0 overflow-x-auto">
+            <button
+              onClick={() => setActiveSeparatedTab("html")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                activeSeparatedTab === "html"
+                  ? "bg-amber-500/20 text-amber-300 border border-amber-500/30 shadow-sm"
+                  : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+              }`}
+            >
+              <FileCode size={13} className="text-amber-400" />
+              📄 HTML ({separatedData?.html ? `${separatedData.html.length} chars` : "0"})
+            </button>
+
+            <button
+              onClick={() => setActiveSeparatedTab("css")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                activeSeparatedTab === "css"
+                  ? "bg-cyan-500/20 text-cyan-300 border border-cyan-500/30 shadow-sm"
+                  : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+              }`}
+            >
+              <Palette size={13} className="text-cyan-400" />
+              🎨 CSS ({separatedData?.css ? `${separatedData.css.length} chars` : "Vazio"})
+            </button>
+
+            <button
+              onClick={() => setActiveSeparatedTab("js")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ${
+                activeSeparatedTab === "js"
+                  ? "bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 shadow-sm"
+                  : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+              }`}
+            >
+              <Zap size={13} className="text-emerald-400" />
+              ⚡ JavaScript ({separatedData?.js ? `${separatedData.js.length} chars` : "Vazio"})
+            </button>
+
+            <button
+              onClick={() => setActiveSeparatedTab("combined")}
+              className={`px-3 py-1.5 rounded-md text-xs font-medium flex items-center gap-1.5 transition-all ml-auto ${
+                activeSeparatedTab === "combined"
+                  ? "bg-indigo-500/20 text-indigo-300 border border-indigo-500/30 shadow-sm"
+                  : "bg-zinc-900 border border-zinc-800 text-zinc-400 hover:text-white"
+              }`}
+            >
+              <Code2 size={13} className="text-indigo-400" />
+              📑 Código Unificado Completo
+            </button>
+          </div>
+
+          {/* Content Preview */}
+          <div className="flex-1 p-4 overflow-y-auto bg-zinc-950 font-mono text-xs text-zinc-200">
+            {activeSeparatedTab === "html" && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-zinc-400 text-[11px] pb-1 border-b border-zinc-800 font-sans">
+                  <span>Marcação HTML (sem tags de script ou estilo)</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(separatedData?.html || "");
+                      toast.success("HTML copiado para a área de transferência!");
+                    }}
+                    className="h-6 px-2 text-[11px] border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded"
+                  >
+                    <Copy size={11} className="mr-1" /> Copiar HTML
+                  </Button>
+                </div>
+                <pre className="p-3 bg-zinc-900/80 border border-zinc-800/80 rounded-lg overflow-x-auto text-amber-200/90 leading-relaxed whitespace-pre-wrap">
+                  {separatedData?.html || "<!-- Nenhum HTML encontrado -->"}
+                </pre>
+              </div>
+            )}
+
+            {activeSeparatedTab === "css" && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-zinc-400 text-[11px] pb-1 border-b border-zinc-800 font-sans">
+                  <span>Estilos CSS extraídos de tags &lt;style&gt;</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(separatedData?.css || "");
+                      toast.success("CSS copiado para a área de transferência!");
+                    }}
+                    className="h-6 px-2 text-[11px] border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded"
+                  >
+                    <Copy size={11} className="mr-1" /> Copiar CSS
+                  </Button>
+                </div>
+                <pre className="p-3 bg-zinc-900/80 border border-zinc-800/80 rounded-lg overflow-x-auto text-cyan-200/90 leading-relaxed whitespace-pre-wrap">
+                  {separatedData?.css || "/* Nenhum estilo <style> extraído */"}
+                </pre>
+              </div>
+            )}
+
+            {activeSeparatedTab === "js" && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-zinc-400 text-[11px] pb-1 border-b border-zinc-800 font-sans">
+                  <span>Lógica JavaScript extraída de tags &lt;script&gt;</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(separatedData?.js || "");
+                      toast.success("JavaScript copiado para a área de transferência!");
+                    }}
+                    className="h-6 px-2 text-[11px] border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded"
+                  >
+                    <Copy size={11} className="mr-1" /> Copiar JavaScript
+                  </Button>
+                </div>
+                <pre className="p-3 bg-zinc-900/80 border border-zinc-800/80 rounded-lg overflow-x-auto text-emerald-200/90 leading-relaxed whitespace-pre-wrap">
+                  {separatedData?.js || "// Nenhuma lógica <script> extraída"}
+                </pre>
+              </div>
+            )}
+
+            {activeSeparatedTab === "combined" && (
+              <div className="space-y-2">
+                <div className="flex justify-between items-center text-zinc-400 text-[11px] pb-1 border-b border-zinc-800 font-sans">
+                  <span>Estrutura Unificada Separada</span>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => {
+                      navigator.clipboard.writeText(separatedData?.combined || "");
+                      toast.success("Código unificado copiado!");
+                    }}
+                    className="h-6 px-2 text-[11px] border-zinc-800 hover:bg-zinc-800 text-zinc-300 rounded"
+                  >
+                    <Copy size={11} className="mr-1" /> Copiar Tudo
+                  </Button>
+                </div>
+                <pre className="p-3 bg-zinc-900/80 border border-zinc-800/80 rounded-lg overflow-x-auto text-zinc-300 leading-relaxed whitespace-pre-wrap">
+                  {separatedData?.combined || code}
+                </pre>
+              </div>
+            )}
+          </div>
+
+          <div className="p-3 px-5 flex justify-between items-center shrink-0 bg-zinc-900/40 border-t border-zinc-800/80">
+            <span className="text-[11px] text-zinc-500 font-sans">
+              O código no editor foi atualizado automaticamente com as seções organizadas.
+            </span>
+            <div className="flex gap-2">
+              <Button
+                size="sm"
+                onClick={() => {
+                  if (separatedData) {
+                    onCodeChange(separatedData.combined);
+                    toast.success("Código separado aplicado no editor!");
+                  }
+                  setIsSeparatedModalOpen(false);
+                }}
+                className="h-8 px-4 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-medium rounded-md shadow-sm"
+              >
+                Aplicar ao Editor
+              </Button>
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setIsSeparatedModalOpen(false)}
+                className="h-8 px-4 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium rounded-md border-zinc-700"
+              >
+                Fechar
+              </Button>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

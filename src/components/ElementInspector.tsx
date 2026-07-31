@@ -40,11 +40,21 @@ import {
   Scaling,
   Frame,
   Layers as LayersIcon,
+  Globe,
+  Loader2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
 import { GoogleFontsModal } from "./GoogleFontsModal";
+import { toast } from "sonner";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+} from "./ui/dialog";
 
 export interface SelectedElementData {
   index: number;
@@ -104,6 +114,9 @@ interface ElementInspectorProps {
   isInspectMode: boolean;
   setIsInspectMode: (val: boolean) => void;
   readOnly?: boolean;
+  externalSiteUrl?: string | null;
+  onClearExternalSite?: () => void;
+  onInspectExternalSite?: (url: string) => void;
 }
 
 export const INSPECTOR_INJECT_SCRIPT = `
@@ -287,12 +300,15 @@ export const INSPECTOR_INJECT_SCRIPT = `
   }
 
   function handleClick(e) {
-    if (!isInspectMode) return;
+    if (!isInspectMode && !window.__isInspectMode) return;
     let target = e.target;
     if (!target || target.id?.startsWith('inspector-')) return;
 
     e.preventDefault();
     e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') {
+      e.stopImmediatePropagation();
+    }
 
     selectedElement = target;
     highlightElement(target, false);
@@ -304,12 +320,15 @@ export const INSPECTOR_INJECT_SCRIPT = `
   }
 
   function handleDblClick(e) {
-    if (!isInspectMode) return;
+    if (!isInspectMode && !window.__isInspectMode) return;
     let target = e.target;
     if (!target || target.id?.startsWith('inspector-')) return;
 
     e.preventDefault();
     e.stopPropagation();
+    if (typeof e.stopImmediatePropagation === 'function') {
+      e.stopImmediatePropagation();
+    }
 
     target.contentEditable = 'true';
     target.focus();
@@ -382,7 +401,8 @@ export const INSPECTOR_INJECT_SCRIPT = `
     if (!msg || typeof msg !== 'object') return;
 
     if (msg.type === 'SET_INSPECT_MODE') {
-      isInspectMode = msg.enabled;
+      isInspectMode = !!msg.enabled;
+      window.__isInspectMode = !!msg.enabled;
       if (!isInspectMode) {
         unhighlightHover();
         if (selectedOverlay) selectedOverlay.style.display = 'none';
@@ -544,6 +564,9 @@ export function ElementInspector({
   isInspectMode,
   setIsInspectMode,
   readOnly = false,
+  externalSiteUrl = null,
+  onClearExternalSite,
+  onInspectExternalSite,
 }: ElementInspectorProps) {
   const [selectedElement, setSelectedElement] = useState<SelectedElementData | null>(null);
   const [activeTab, setActiveTab] = useState<"props" | "box" | "styles" | "presets" | "attrs" | "tree">("props");
@@ -553,6 +576,52 @@ export function ElementInspector({
   const [inspectorHeight, setInspectorHeight] = useState(280);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  // External Site Import State
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [importUrlInput, setImportUrlInput] = useState("");
+  const [isImportingUrl, setIsImportingUrl] = useState(false);
+
+  const handleImportExternalSite = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
+    let target = importUrlInput.trim();
+    if (!target) {
+      toast.error("Por favor, digite uma URL válida.");
+      return;
+    }
+    if (onInspectExternalSite) {
+      setIsImportModalOpen(false);
+      onInspectExternalSite(target);
+    } else {
+      try {
+        setIsImportingUrl(true);
+        toast.info(`Buscando HTML de ${target}...`);
+
+        const res = await fetch("/api/fetch-url", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ url: target }),
+        });
+
+        const data = await res.json();
+        if (!res.ok || !data.success) {
+          throw new Error(data.error || "Falha ao carregar o site");
+        }
+
+        if (onCodeChange) {
+          onCodeChange(data.html);
+        }
+        setIsInspectMode(true);
+        setIsCollapsed(false);
+        setIsImportModalOpen(false);
+        toast.success(`Site ${data.url} carregado! Clique em qualquer elemento para inspecionar.`);
+      } catch (err: any) {
+        toast.error(err.message || "Não foi possível carregar a URL fornecida.");
+      } finally {
+        setIsImportingUrl(false);
+      }
+    }
+  };
 
   useEffect(() => {
     if (isInspectMode && isCollapsed) {
@@ -564,16 +633,18 @@ export function ElementInspector({
     e.preventDefault();
     setIsDragging(true);
     const startY = e.clientY;
-    const startHeight = isCollapsed ? 42 : inspectorHeight;
+    const startHeight = isCollapsed ? 46 : inspectorHeight;
 
     const handleMouseMove = (moveEvent: MouseEvent) => {
+      moveEvent.preventDefault();
       const deltaY = startY - moveEvent.clientY;
       const newHeight = startHeight + deltaY;
-      if (newHeight < 65) {
+      if (newHeight < 60) {
         setIsCollapsed(true);
       } else {
         setIsCollapsed(false);
-        setInspectorHeight(Math.max(120, Math.min(650, newHeight)));
+        const maxHeight = Math.max(300, window.innerHeight - 80);
+        setInspectorHeight(Math.max(140, Math.min(maxHeight, newHeight)));
       }
     };
 
@@ -712,7 +783,7 @@ export function ElementInspector({
           setActiveTab("styles"); // Switch to Box & CSS Styles editor
         }
       } else if (data.type === "INSPECTOR_HTML_UPDATED") {
-        if (!readOnly && onCodeChange && data.html) {
+        if (!readOnly && onCodeChange && data.html && !externalSiteUrl) {
           updateCodeWithNewBodyHtml(data.html);
         }
       } else if (data.type === "INSPECTOR_DOM_TREE_RESPONSE") {
@@ -970,20 +1041,33 @@ export function ElementInspector({
   ];
 
   return (
-    <div
-      style={{ height: isCollapsed ? 42 : inspectorHeight }}
-      className={`flex flex-col bg-zinc-950 border-t border-zinc-800/80 text-zinc-200 text-xs w-full shrink-0 shadow-2xl z-30 font-sans relative transition-all duration-100 ease-out ${
-        isDragging ? "select-none" : ""
-      }`}
-    >
-      {/* Top Resize Drag Handle */}
+    <>
+      {/* Invisible overlay while dragging to prevent iframe from capturing mouse move events */}
+      {isDragging && (
+        <div className="fixed inset-0 z-[99999] cursor-row-resize select-none bg-transparent" />
+      )}
       <div
-        onMouseDown={handleMouseDown}
-        className="h-1.5 w-full bg-zinc-900 hover:bg-emerald-500/80 cursor-row-resize flex items-center justify-center transition-colors group select-none shrink-0"
-        title="Arraste para redimensionar o Inspetor"
+        style={{ height: isCollapsed ? 46 : inspectorHeight }}
+        className={`flex flex-col bg-zinc-950 border-t border-zinc-800/80 text-zinc-200 text-xs w-full shrink-0 shadow-2xl z-30 font-sans relative ${
+          isDragging ? "transition-none select-none" : "transition-all duration-150 ease-out"
+        }`}
       >
-        <div className="w-12 h-0.5 bg-zinc-700 group-hover:bg-white rounded-full transition-colors" />
-      </div>
+        {/* Top Resize Drag Handle */}
+        <div
+          onMouseDown={handleMouseDown}
+          onDoubleClick={() => {
+            if (isCollapsed) {
+              setIsCollapsed(false);
+              setInspectorHeight(320);
+            } else {
+              setInspectorHeight((prev) => (prev > 350 ? 240 : 420));
+            }
+          }}
+          className="h-2.5 w-full bg-zinc-900 hover:bg-emerald-500/80 active:bg-emerald-500 cursor-row-resize flex items-center justify-center transition-colors group select-none shrink-0"
+          title="Arraste para redimensionar ou clique duplo para expandir/restaurar"
+        >
+          <div className="w-16 h-1 bg-zinc-700 group-hover:bg-white rounded-full transition-colors" />
+        </div>
 
       {/* Top Inspector Header Bar */}
       <div className="h-9 px-3 bg-zinc-900/90 border-b border-zinc-800/80 flex items-center justify-between shrink-0 gap-2 overflow-x-auto no-scrollbar">
@@ -1009,6 +1093,34 @@ export function ElementInspector({
             {isInspectMode ? "Inspecting" : "Inspect Element"}
           </Button>
 
+          {externalSiteUrl ? (
+            <div className="flex items-center gap-1.5 bg-cyan-950/90 px-2 py-0.5 rounded-lg border border-cyan-800 text-cyan-200 text-[11px] shrink-0 font-mono">
+              <Globe size={12} className="text-cyan-400 shrink-0 animate-pulse" />
+              <span className="font-medium truncate max-w-[160px]">{externalSiteUrl}</span>
+              {onClearExternalSite && (
+                <button
+                  type="button"
+                  onClick={onClearExternalSite}
+                  className="ml-1 text-cyan-300 hover:text-white text-[10px] font-sans bg-cyan-900/80 px-1.5 py-0.5 rounded border border-cyan-700 hover:bg-cyan-800 transition-colors"
+                  title="Voltar ao preview do código local"
+                >
+                  Voltar ao Código
+                </button>
+              )}
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setIsImportModalOpen(true)}
+              className="h-6 px-2 text-xs rounded-lg gap-1.5 font-medium bg-cyan-950/40 border-cyan-800/60 text-cyan-300 hover:bg-cyan-900/60 hover:text-white transition-all shadow-sm"
+              title="Inspecionar website externo por URL"
+            >
+              <Globe size={12} className="text-cyan-400" />
+              <span className="hidden xs:inline">Inspecionar</span> Site
+            </Button>
+          )}
+
           {selectedElement ? (
             <div className="flex items-center gap-1.5 bg-zinc-950 px-2 py-0.5 rounded-lg border border-zinc-800/80 font-mono text-zinc-300 shadow-inner text-[11px]">
               <span className="text-blue-400 font-bold">&lt;{selectedElement.tagName}&gt;</span>
@@ -1024,7 +1136,7 @@ export function ElementInspector({
             </div>
           ) : (
             <span className="text-zinc-500 text-[11px] italic hidden sm:inline">
-              Click any element in preview canvas to inspect
+              {externalSiteUrl ? "Clique em qualquer elemento do site para inspecionar" : "Clique em qualquer elemento no preview para inspecionar"}
             </span>
           )}
         </div>
@@ -2466,9 +2578,10 @@ export function ElementInspector({
           </div>
         ) : null}
       </div>
-        </>
-      )}
-      <GoogleFontsModal
+    </>
+  )}
+</div>
+<GoogleFontsModal
         isOpen={isFontsModalOpen}
         onClose={() => setIsFontsModalOpen(false)}
         onApplyFontToSelectedElement={(family) => {
@@ -2483,6 +2596,69 @@ export function ElementInspector({
           }
         }}
       />
-    </div>
+
+      {/* --- IMPORT EXTERNAL WEBSITE MODAL --- */}
+      <Dialog open={isImportModalOpen} onOpenChange={setIsImportModalOpen}>
+        <DialogContent className="max-w-md w-[92vw] bg-zinc-950 border border-zinc-800 text-zinc-100 p-5 rounded-xl shadow-2xl">
+          <DialogHeader className="space-y-1.5">
+            <DialogTitle className="text-base font-semibold flex items-center gap-2 text-zinc-100">
+              <Globe size={18} className="text-cyan-400" />
+              Inspecionar Website Externo
+            </DialogTitle>
+            <DialogDescription className="text-zinc-400 text-xs">
+              Digite ou cole o link (URL) de qualquer site público na web para carregar a estrutura HTML e poder inspecioná-la e alterá-la no editor em tempo real.
+            </DialogDescription>
+          </DialogHeader>
+
+          <form onSubmit={handleImportExternalSite} className="space-y-4 pt-2">
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-zinc-300">URL do Site</Label>
+              <div className="relative">
+                <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-zinc-500" />
+                <Input
+                  type="text"
+                  placeholder="https://example.com ou wikipedia.org"
+                  value={importUrlInput}
+                  onChange={(e) => setImportUrlInput(e.target.value)}
+                  className="pl-9 bg-zinc-900 border-zinc-800 text-xs text-zinc-100 focus-visible:ring-cyan-500 h-9 rounded-lg"
+                  autoFocus
+                />
+              </div>
+              <p className="text-[11px] text-zinc-500">
+                Exemplos: <code className="text-cyan-400">https://example.com</code>, <code className="text-cyan-400">news.ycombinator.com</code>, <code className="text-cyan-400">wikipedia.org</code>
+              </p>
+            </div>
+
+            <div className="flex justify-end gap-2 pt-2">
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                onClick={() => setIsImportModalOpen(false)}
+                className="h-8 px-3 text-xs bg-zinc-900 border-zinc-800 text-zinc-300 hover:text-white"
+              >
+                Cancelar
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isImportingUrl || !importUrlInput.trim()}
+                className="h-8 px-4 text-xs bg-cyan-600 hover:bg-cyan-500 text-white font-medium rounded-lg gap-1.5"
+              >
+                {isImportingUrl ? (
+                  <>
+                    <Loader2 size={13} className="animate-spin" /> Carregando Site...
+                  </>
+                ) : (
+                  <>
+                    <Globe size={13} /> Carregar e Inspecionar
+                  </>
+                )}
+              </Button>
+            </div>
+          </form>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

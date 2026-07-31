@@ -9,6 +9,8 @@ import {
   Compass,
   ExternalLink,
   Search,
+  Globe,
+  Loader2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -20,6 +22,10 @@ interface PreviewAddressBarProps {
   setCurrentPath: (path: string) => void;
   onRefresh: () => void;
   code?: string;
+  externalSiteUrl?: string | null;
+  onInspectExternalSite?: (url: string) => void;
+  onClearExternalSite?: () => void;
+  onImportSite?: (html: string, url: string) => void;
 }
 
 export function PreviewAddressBar({
@@ -28,31 +34,29 @@ export function PreviewAddressBar({
   setCurrentPath,
   onRefresh,
   code = "",
+  externalSiteUrl = null,
+  onInspectExternalSite,
+  onClearExternalSite,
+  onImportSite,
 }: PreviewAddressBarProps) {
-  const [inputUrl, setInputUrl] = useState(currentPath || "/");
+  const [inputUrl, setInputUrl] = useState(externalSiteUrl || currentPath || "/");
   const [copied, setCopied] = useState(false);
   const [historyStack, setHistoryStack] = useState<string[]>(["/"]);
   const [historyIndex, setHistoryIndex] = useState(0);
 
-  // Sync internal inputUrl when currentPath changes from iframe messages
+  // Sync internal inputUrl when externalSiteUrl or currentPath changes
   useEffect(() => {
-    if (currentPath) {
+    if (externalSiteUrl) {
+      setInputUrl(externalSiteUrl);
+    } else if (currentPath) {
       setInputUrl(currentPath);
-      // Track in history stack if different from last item
-      setHistoryStack((prev) => {
-        if (prev[historyIndex] === currentPath) return prev;
-        const newStack = [...prev.slice(0, historyIndex + 1), currentPath];
-        setHistoryIndex(newStack.length - 1);
-        return newStack;
-      });
     }
-  }, [currentPath]);
+  }, [externalSiteUrl, currentPath]);
 
   // Extract anchors and sections from code for quick navigation menu
   const detectedSections = React.useMemo(() => {
     if (!code) return [];
     const sections: string[] = [];
-    // Match id="..." or href="#..."
     const idMatches = code.matchAll(/id=["']([^"']+)["']/g);
     for (const match of idMatches) {
       const id = match[1];
@@ -84,6 +88,20 @@ export function PreviewAddressBar({
     e.preventDefault();
     let clean = inputUrl.trim();
     if (!clean) clean = "/";
+
+    const isExternal =
+      clean.startsWith("http://") ||
+      clean.startsWith("https://") ||
+      clean.startsWith("www.") ||
+      /^[a-zA-Z0-9-]+(\.[a-zA-Z0-9-]+)+/.test(clean);
+
+    if (isExternal) {
+      if (onInspectExternalSite) {
+        onInspectExternalSite(clean);
+        return;
+      }
+    }
+
     if (!clean.startsWith("/") && !clean.startsWith("#") && !clean.startsWith("http")) {
       clean = "/" + clean;
     }
@@ -95,7 +113,7 @@ export function PreviewAddressBar({
         "*"
       );
     }
-    toast.success(`Navigated preview to ${clean}`);
+    toast.success(`Navegado para ${clean}`);
   };
 
   const handleGoBack = () => {
@@ -179,28 +197,61 @@ export function PreviewAddressBar({
       </div>
 
       {/* Editable Interactive Address Bar */}
-      <form onSubmit={handleNavigateToInput} className="flex-1 flex items-center max-w-xl mx-auto">
-        <div className="bg-zinc-950 text-zinc-300 text-xs px-2.5 py-1 rounded-xl flex items-center gap-2 border border-zinc-800/90 w-full shadow-inner focus-within:border-cyan-500/80 transition-colors">
-          <Lock size={12} className="text-emerald-400 shrink-0" />
-          <span className="text-zinc-500 font-mono text-[11px] select-none shrink-0">
-            preview.localhost
-          </span>
+      <form onSubmit={handleNavigateToInput} className="flex-1 flex items-center max-w-xl mx-auto gap-2">
+        <div className="bg-zinc-950 text-zinc-300 text-xs px-2.5 py-1 rounded-xl flex items-center gap-2 border border-zinc-800/90 w-full shadow-inner focus-within:border-cyan-500/80 transition-colors relative">
+          {inputUrl.startsWith("http") || inputUrl.includes(".") ? (
+            <Globe size={12} className="text-cyan-400 shrink-0" title="URL Externa de Website" />
+          ) : (
+            <Lock size={12} className="text-emerald-400 shrink-0" />
+          )}
+
+          {!inputUrl.startsWith("http") && !inputUrl.startsWith("www.") && (
+            <span className="text-zinc-500 font-mono text-[11px] select-none shrink-0">
+              preview.localhost
+            </span>
+          )}
+
           <input
             type="text"
             value={inputUrl}
             onChange={(e) => setInputUrl(e.target.value)}
-            placeholder="/ or #section"
+            placeholder="Digite /rota ou cole URL de um site (ex: https://example.com)..."
             className="bg-transparent border-none outline-none text-zinc-200 text-xs font-mono w-full focus:ring-0 px-0"
           />
+
           <button
             type="button"
             onClick={handleCopyUrl}
             className="text-zinc-500 hover:text-zinc-200 shrink-0 p-0.5 rounded hover:bg-zinc-800 transition-colors"
-            title="Copy Simulated Preview URL"
+            title="Copiar URL de Preview"
           >
             {copied ? <Check size={12} className="text-emerald-400" /> : <Copy size={12} />}
           </button>
         </div>
+
+        {externalSiteUrl ? (
+          <Button
+            type="button"
+            size="sm"
+            onClick={onClearExternalSite}
+            className="h-7 px-2.5 bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-[11px] font-medium rounded-lg shrink-0 gap-1 shadow-sm border border-zinc-700"
+            title="Voltar ao preview do código local"
+          >
+            <span>Voltar ao Código</span>
+          </Button>
+        ) : (
+          (inputUrl.startsWith("http") || inputUrl.startsWith("www.") || (inputUrl.includes(".") && !inputUrl.startsWith("/"))) && (
+            <Button
+              type="submit"
+              size="sm"
+              className="h-7 px-2.5 bg-cyan-600 hover:bg-cyan-500 text-white text-[11px] font-medium rounded-lg shrink-0 gap-1 shadow-sm"
+              title="Carregar e inspecionar este site no preview"
+            >
+              <Globe size={12} />
+              Inspecionar Site
+            </Button>
+          )
+        )}
       </form>
 
       {/* Quick Link/Section Pills if detected in code */}

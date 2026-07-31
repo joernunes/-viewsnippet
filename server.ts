@@ -29,6 +29,61 @@ async function startServer() {
 
   app.use(express.json());
 
+  // Proxy route to fetch external website HTML for inspector
+  app.post("/api/fetch-url", async (req, res) => {
+    try {
+      let { url } = req.body;
+      if (!url || typeof url !== "string") {
+        return res.status(400).json({ error: "URL é obrigatória" });
+      }
+
+      url = url.trim();
+      if (!url.startsWith("http://") && !url.startsWith("https://")) {
+        url = "https://" + url;
+      }
+
+      const parsedUrl = new URL(url);
+
+      const response = await fetch(parsedUrl.href, {
+        headers: {
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+          "Accept-Language": "pt-BR,pt;q=0.9,en-US;q=0.8,en;q=0.7",
+        },
+      });
+
+      if (!response.ok) {
+        return res
+          .status(response.status)
+          .json({ error: `Falha ao carregar site: HTTP ${response.status} ${response.statusText}` });
+      }
+
+      let html = await response.text();
+
+      // Inject base tag so relative links, images, and styles resolve to original host
+      const origin = parsedUrl.origin;
+      const baseTag = `<base href="${origin}/">`;
+
+      if (!/<base\s/i.test(html)) {
+        if (/<head[^>]*>/i.test(html)) {
+          html = html.replace(/(<head[^>]*>)/i, `$1\n${baseTag}`);
+        } else if (/<html[^>]*>/i.test(html)) {
+          html = html.replace(/(<html[^>]*>)/i, `$1\n<head>${baseTag}</head>`);
+        } else {
+          html = `<head>${baseTag}</head>\n` + html;
+        }
+      }
+
+      res.json({ success: true, url: parsedUrl.href, html });
+    } catch (error: any) {
+      console.error("Erro ao buscar URL externa:", error);
+      res.status(500).json({
+        error: "Não foi possível carregar a URL fornecida: " + (error.message || "Erro de conexão"),
+      });
+    }
+  });
+
   // API Routes
   app.post("/api/snippets", async (req, res) => {
     try {

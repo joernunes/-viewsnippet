@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   ChevronLeft,
   ChevronRight,
@@ -11,6 +11,9 @@ import {
   Search,
   Globe,
   Loader2,
+  Camera,
+  Crop,
+  ChevronDown,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -26,6 +29,8 @@ interface PreviewAddressBarProps {
   onInspectExternalSite?: (url: string) => void;
   onClearExternalSite?: () => void;
   onImportSite?: (html: string, url: string) => void;
+  onCaptureFullPage?: () => void;
+  onStartCaptureArea?: () => void;
 }
 
 export function PreviewAddressBar({
@@ -38,11 +43,27 @@ export function PreviewAddressBar({
   onInspectExternalSite,
   onClearExternalSite,
   onImportSite,
+  onCaptureFullPage,
+  onStartCaptureArea,
 }: PreviewAddressBarProps) {
   const [inputUrl, setInputUrl] = useState(externalSiteUrl || currentPath || "/");
   const [copied, setCopied] = useState(false);
   const [historyStack, setHistoryStack] = useState<string[]>(["/"]);
   const [historyIndex, setHistoryIndex] = useState(0);
+
+  const [isCaptureMenuOpen, setIsCaptureMenuOpen] = useState(false);
+  const captureMenuRef = useRef<HTMLDivElement>(null);
+
+  // Close dropdown on click outside
+  useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (captureMenuRef.current && !captureMenuRef.current.contains(e.target as Node)) {
+        setIsCaptureMenuOpen(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
 
   // Sync internal inputUrl when externalSiteUrl or currentPath changes
   useEffect(() => {
@@ -194,6 +215,61 @@ export function PreviewAddressBar({
         >
           <RotateCw size={13} />
         </Button>
+
+        {/* Screen Capture Menu Trigger */}
+        {(onCaptureFullPage || onStartCaptureArea) && (
+          <div className="relative" ref={captureMenuRef}>
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setIsCaptureMenuOpen(!isCaptureMenuOpen)}
+              className="h-7 px-2 rounded-lg text-zinc-300 hover:text-white hover:bg-zinc-800 gap-1 text-xs font-medium border border-zinc-800/80"
+              title="Captura de Ecrã (Página Completa / Seleccionar Área)"
+            >
+              <Camera size={14} className="text-cyan-400 shrink-0" />
+              <span className="hidden sm:inline text-[11px]">Capturar</span>
+              <ChevronDown size={12} className={`text-zinc-500 transition-transform ${isCaptureMenuOpen ? "rotate-180" : ""}`} />
+            </Button>
+
+            {isCaptureMenuOpen && (
+              <div className="absolute top-full left-0 mt-1.5 w-52 bg-zinc-900 border border-zinc-800 rounded-xl shadow-2xl p-1.5 z-50 flex flex-col gap-1 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="text-[10px] uppercase font-mono tracking-wider text-zinc-500 px-2 py-1 font-semibold">
+                  Captura de Ecrã
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCaptureMenuOpen(false);
+                    if (onCaptureFullPage) onCaptureFullPage();
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 text-xs text-zinc-200 hover:text-white hover:bg-cyan-950/60 rounded-lg transition-colors text-left font-medium group"
+                >
+                  <Camera size={15} className="text-cyan-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <div className="flex flex-col">
+                    <span>Web Page Completa</span>
+                    <span className="text-[10px] text-zinc-500 font-normal">Captura toda a página web</span>
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsCaptureMenuOpen(false);
+                    if (onStartCaptureArea) onStartCaptureArea();
+                  }}
+                  className="flex items-center gap-2.5 px-2.5 py-2 text-xs text-zinc-200 hover:text-white hover:bg-cyan-950/60 rounded-lg transition-colors text-left font-medium group"
+                >
+                  <Crop size={15} className="text-cyan-400 group-hover:scale-110 transition-transform shrink-0" />
+                  <div className="flex flex-col">
+                    <span>Capturar Área</span>
+                    <span className="text-[10px] text-zinc-500 font-normal">Desenhar retângulo de recorte</span>
+                  </div>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Editable Interactive Address Bar */}

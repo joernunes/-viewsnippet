@@ -39,6 +39,10 @@ import { CodeDXSuite } from "../components/CodeDXSuite";
 import { ShortcutsModal } from "../components/ShortcutsModal";
 import { DownloadModal } from "../components/DownloadModal";
 import { GoogleFontsModal } from "../components/GoogleFontsModal";
+import { ScreenCaptureModal } from "../components/ScreenCaptureModal";
+import { ScreenCaptureButton } from "../components/ScreenCaptureButton";
+import { AreaSelectorOverlay } from "../components/AreaSelectorOverlay";
+import { captureIframeCanvas, cropCanvas } from "../lib/capture";
 import { GOOGLE_FONTS_PRELOAD_LINK } from "../lib/fonts";
 import { saveRecentSnippet } from "../lib/history";
 import { toast } from "sonner";
@@ -113,6 +117,62 @@ export function Home() {
   const [previewCurrentPath, setPreviewCurrentPath] = useState<string>("/");
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const monacoEditorRef = useRef<any>(null);
+
+  // Screen Capture States
+  const [captureModalOpen, setCaptureModalOpen] = useState(false);
+  const [capturedImageUrl, setCapturedImageUrl] = useState<string | null>(null);
+  const [capturedDimensions, setCapturedDimensions] = useState<{ width: number; height: number } | null>(null);
+  const [captureType, setCaptureType] = useState<"full" | "area">("full");
+  const [isCapturingArea, setIsCapturingArea] = useState(false);
+  const previewFrameContainerRef = useRef<HTMLDivElement>(null);
+
+  const handleCaptureFullPage = async () => {
+    const loadingToast = toast.loading("A gerar captura de ecrã da página completa...");
+    try {
+      const canvas = await captureIframeCanvas(iframeRef.current, { fullPage: true });
+      const dataUrl = canvas.toDataURL("image/png");
+      setCapturedImageUrl(dataUrl);
+      setCapturedDimensions({ width: canvas.width, height: canvas.height });
+      setCaptureType("full");
+      setCaptureModalOpen(true);
+      toast.dismiss(loadingToast);
+      toast.success("Captura de ecrã completa concluída!");
+    } catch (err) {
+      console.error("Erro na captura de ecrã:", err);
+      toast.dismiss(loadingToast);
+      toast.error("Erro ao gerar captura de ecrã.");
+    }
+  };
+
+  const handleStartCaptureArea = () => {
+    setIsCapturingArea(true);
+    toast.info("Desenhe um retângulo no preview para capturar a área.");
+  };
+
+  const handleConfirmCaptureArea = async (
+    rect: { x: number; y: number; width: number; height: number },
+    containerRect: { width: number; height: number }
+  ) => {
+    const loadingToast = toast.loading("A recortar a área selecionada...");
+    try {
+      const fullCanvas = await captureIframeCanvas(iframeRef.current, { fullPage: false });
+      const croppedCanvas = cropCanvas(fullCanvas, rect, containerRect);
+      const dataUrl = croppedCanvas.toDataURL("image/png");
+
+      setCapturedImageUrl(dataUrl);
+      setCapturedDimensions({ width: croppedCanvas.width, height: croppedCanvas.height });
+      setCaptureType("area");
+      setIsCapturingArea(false);
+      setCaptureModalOpen(true);
+
+      toast.dismiss(loadingToast);
+      toast.success("Área capturada com sucesso!");
+    } catch (err) {
+      console.error("Erro na captura de área:", err);
+      toast.dismiss(loadingToast);
+      toast.error("Erro ao recortar a área selecionada.");
+    }
+  };
 
   // Message listener for preview link navigation
   useEffect(() => {
@@ -472,7 +532,7 @@ export function Home() {
   );
 
   const previewContent = (viewMode === "split" || (viewMode === "preview" && previewDevice === "desktop")) ? (
-    <div className="w-full h-full flex flex-col bg-white overflow-hidden relative">
+    <div className="w-full h-full flex flex-col bg-white overflow-hidden relative" ref={previewFrameContainerRef}>
       <div className="flex-1 relative bg-white overflow-hidden">
         <iframe
           ref={iframeRef}
@@ -480,6 +540,12 @@ export function Home() {
           title="Preview"
           className="w-full h-full border-none"
           sandbox="allow-scripts allow-modals allow-forms allow-popups"
+        />
+        <AreaSelectorOverlay
+          isActive={isCapturingArea}
+          onCancel={() => setIsCapturingArea(false)}
+          onConfirmArea={handleConfirmCaptureArea}
+          containerRef={previewFrameContainerRef}
         />
       </div>
       {(language === "html" || language === "css" || Boolean(externalSiteUrl)) && (
@@ -499,6 +565,7 @@ export function Home() {
     <div className="w-full h-full bg-zinc-950 overflow-auto flex flex-col">
       <div className="min-w-full flex-1 flex flex-col items-center justify-center p-4 sm:p-8">
         <div
+          ref={previewFrameContainerRef}
           className={`transition-all duration-500 ease-in-out relative bg-zinc-900 shadow-2xl overflow-hidden flex flex-col ${
             previewDevice === "desktop"
               ? "w-full flex-1 rounded-xl border border-zinc-800 resize-x mx-auto min-w-[320px] max-w-full"
@@ -513,26 +580,6 @@ export function Home() {
                 }`
           }`}
         >
-          {previewDevice === "desktop" && (
-            <PreviewAddressBar
-              iframeRef={iframeRef}
-              currentPath={previewCurrentPath}
-              setCurrentPath={setPreviewCurrentPath}
-              onRefresh={() => {
-                setSrcDoc(getSrcDoc(code, language));
-                toast.success("Preview reloaded");
-              }}
-              code={code}
-              externalSiteUrl={externalSiteUrl}
-              onInspectExternalSite={handleInspectExternalSite}
-              onClearExternalSite={handleClearExternalSite}
-              onImportSite={(html, url) => {
-                updateCode(html);
-                setLanguage("html");
-                setIsInspectMode(true);
-              }}
-            />
-          )}
           {previewDevice === "iphone" && (
             <div
               className={`absolute z-20 bg-black rounded-full pointer-events-none transition-all duration-500 ${
@@ -551,19 +598,27 @@ export function Home() {
               }`}
             ></div>
           )}
-          <iframe
-            ref={iframeRef}
-            srcDoc={srcDoc}
-            title="Preview"
-            className={`w-full flex-1 bg-white border-none relative z-10 ${
-              previewDevice === "iphone"
-                ? "rounded-[2.2rem]"
-                : previewDevice === "ipad"
-                  ? "rounded-[1.2rem]"
-                  : ""
-            }`}
-            sandbox="allow-scripts allow-modals allow-forms allow-popups"
-          />
+          <div className="flex-1 relative w-full h-full overflow-hidden">
+            <iframe
+              ref={iframeRef}
+              srcDoc={srcDoc}
+              title="Preview"
+              className={`w-full h-full bg-white border-none relative z-10 ${
+                previewDevice === "iphone"
+                  ? "rounded-[2.2rem]"
+                  : previewDevice === "ipad"
+                    ? "rounded-[1.2rem]"
+                    : ""
+              }`}
+              sandbox="allow-scripts allow-modals allow-forms allow-popups"
+            />
+            <AreaSelectorOverlay
+              isActive={isCapturingArea}
+              onCancel={() => setIsCapturingArea(false)}
+              onConfirmArea={handleConfirmCaptureArea}
+              containerRef={previewFrameContainerRef}
+            />
+          </div>
         </div>
       </div>
       {(language === "html" || language === "css" || Boolean(externalSiteUrl)) && (
@@ -818,6 +873,11 @@ export function Home() {
                   />
                   <TooltipContent>Open Integrated DevTools Suite (Console, Network, Audits, Storage)</TooltipContent>
                 </Tooltip>
+
+                <ScreenCaptureButton
+                  onCaptureFullPage={handleCaptureFullPage}
+                  onStartCaptureArea={handleStartCaptureArea}
+                />
               </div>
             )}
 
@@ -1000,6 +1060,18 @@ export function Home() {
           } else {
             updateCode(`${linkTag}\n${code}`);
           }
+        }}
+      />
+      <ScreenCaptureModal
+        isOpen={captureModalOpen}
+        onClose={() => setCaptureModalOpen(false)}
+        imageUrl={capturedImageUrl}
+        imageDimensions={capturedDimensions}
+        captureType={captureType}
+        onRecaptureFull={handleCaptureFullPage}
+        onRecaptureArea={() => {
+          setCaptureModalOpen(false);
+          handleStartCaptureArea();
         }}
       />
     </div>

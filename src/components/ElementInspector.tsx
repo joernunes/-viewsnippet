@@ -300,8 +300,18 @@ export const INSPECTOR_INJECT_SCRIPT = `
   }
 
   function handleClick(e) {
-    if (!isInspectMode && !window.__isInspectMode) return;
     let target = e.target;
+    // Intercept clicks on anchor <a> tags to prevent navigation during inspect mode
+    const anchor = target ? (target.closest ? target.closest('a') : null) : null;
+    if (anchor && (isInspectMode || window.__isInspectMode)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation();
+      }
+    }
+
+    if (!isInspectMode && !window.__isInspectMode) return;
     if (!target || target.id?.startsWith('inspector-')) return;
 
     e.preventDefault();
@@ -533,6 +543,17 @@ export const INSPECTOR_INJECT_SCRIPT = `
     document.addEventListener('DOMContentLoaded', createOverlays);
   }
 
+  document.addEventListener('click', function(e) {
+    const anchor = e.target && e.target.closest ? e.target.closest('a') : null;
+    if (anchor && (isInspectMode || window.__isInspectMode)) {
+      e.preventDefault();
+      e.stopPropagation();
+      if (typeof e.stopImmediatePropagation === 'function') {
+        e.stopImmediatePropagation();
+      }
+    }
+  }, true);
+
   document.addEventListener('mouseover', handleMouseOver, true);
   document.addEventListener('mouseout', handleMouseOut, true);
   document.addEventListener('click', handleClick, true);
@@ -575,7 +596,15 @@ export function ElementInspector({
   // Resize and collapse panel states
   const [inspectorHeight, setInspectorHeight] = useState(280);
   const [isCollapsed, setIsCollapsed] = useState(false);
+  const [isHidden, setIsHidden] = useState(false);
   const [isDragging, setIsDragging] = useState(false);
+
+  useEffect(() => {
+    if (isInspectMode) {
+      setIsHidden(false);
+      setIsCollapsed(false);
+    }
+  }, [isInspectMode]);
 
   // External Site Import State
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -1040,6 +1069,10 @@ export function ElementInspector({
     },
   ];
 
+  if (isHidden && !isInspectMode) {
+    return null;
+  }
+
   return (
     <>
       {/* Invisible overlay while dragging to prevent iframe from capturing mouse move events */}
@@ -1272,6 +1305,7 @@ export function ElementInspector({
             onClick={() => {
               setIsInspectMode(false);
               setIsCollapsed(true);
+              setIsHidden(true);
             }}
             title="Fechar Inspetor"
           >

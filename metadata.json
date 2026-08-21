@@ -1,5 +1,6 @@
 {
   "name": "ViewSnippet",
-  "description": "A professional code sharing platform with real-time split-view preview and device simulation.",
-  "requestFramePermissions": []
+  "description": "Professional code snippet sharing with integrated Web Inspector and Microsoft Edge Side Panel Extension.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }

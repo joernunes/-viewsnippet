@@ -30,6 +30,7 @@ import {
   PanelRight,
   Terminal,
   Type,
+  Package,
 } from "lucide-react";
 import { ElementInspector, INSPECTOR_INJECT_SCRIPT } from "../components/ElementInspector";
 import { DevToolsSuite, DEVTOOLS_INJECT_SCRIPT } from "../components/DevToolsSuite";
@@ -39,6 +40,7 @@ import { CodeDXSuite } from "../components/CodeDXSuite";
 import { ShortcutsModal } from "../components/ShortcutsModal";
 import { DownloadModal } from "../components/DownloadModal";
 import { GoogleFontsModal } from "../components/GoogleFontsModal";
+import { EdgeExtensionModal } from "../components/EdgeExtensionModal";
 import { ScreenCaptureModal } from "../components/ScreenCaptureModal";
 import { ScreenCaptureButton } from "../components/ScreenCaptureButton";
 import { AreaSelectorOverlay } from "../components/AreaSelectorOverlay";
@@ -78,6 +80,7 @@ export function ViewSnippet() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isFontsOpen, setIsFontsOpen] = useState(false);
+  const [isEdgeExtensionOpen, setIsEdgeExtensionOpen] = useState(false);
   const [previewCurrentPath, setPreviewCurrentPath] = useState<string>("/");
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const monacoEditorRef = useRef<any>(null);
@@ -818,6 +821,23 @@ export function ViewSnippet() {
               <TooltipTrigger
                 render={
                   <Button
+                    id="open-edge-extension-viewsnippet-btn"
+                    onClick={() => setIsEdgeExtensionOpen(true)}
+                    variant="outline"
+                    className="h-8 rounded-md px-3 shadow-none bg-cyan-950/40 border-cyan-500/40 text-xs text-cyan-300 hover:text-white hover:bg-cyan-900/50 gap-1.5 font-medium cursor-pointer"
+                  >
+                    <Package size={13} className="text-cyan-400" />
+                    Extensão Edge (.ZIP)
+                  </Button>
+                }
+              />
+              <TooltipContent>Descarregar Extensão Side Panel para Microsoft Edge (.ZIP)</TooltipContent>
+            </Tooltip>
+
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
                     onClick={() => setIsDownloadOpen(true)}
                     variant="outline"
                     className="h-8 rounded-md px-3 shadow-none bg-zinc-900 border-zinc-700 text-xs text-zinc-200 hover:text-white hover:bg-zinc-800 gap-1.5"
@@ -937,7 +957,7 @@ export function ViewSnippet() {
                     srcDoc={srcDoc}
                     title="Preview"
                     className="w-full h-full border-none"
-                    sandbox="allow-scripts allow-modals allow-forms allow-popups"
+                    sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"
                   />
                   <AreaSelectorOverlay
                     isActive={isCapturingArea}
@@ -1008,7 +1028,7 @@ export function ViewSnippet() {
                               ? "rounded-[1.2rem]"
                               : ""
                         }`}
-                        sandbox="allow-scripts allow-modals allow-forms allow-popups"
+                        sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"
                       />
                       <AreaSelectorOverlay
                         isActive={isCapturingArea}
@@ -1111,6 +1131,10 @@ export function ViewSnippet() {
             setSnippet({ ...snippet, code: updated });
           }
         }}
+      />
+      <EdgeExtensionModal
+        isOpen={isEdgeExtensionOpen}
+        onClose={() => setIsEdgeExtensionOpen(false)}
       />
       <ScreenCaptureModal
         isOpen={captureModalOpen}

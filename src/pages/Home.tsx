@@ -30,6 +30,7 @@ import {
   Terminal,
   Download,
   Type,
+  Package,
 } from "lucide-react";
 import { ElementInspector, INSPECTOR_INJECT_SCRIPT } from "../components/ElementInspector";
 import { DevToolsSuite, DEVTOOLS_INJECT_SCRIPT } from "../components/DevToolsSuite";
@@ -39,6 +40,7 @@ import { CodeDXSuite } from "../components/CodeDXSuite";
 import { ShortcutsModal } from "../components/ShortcutsModal";
 import { DownloadModal } from "../components/DownloadModal";
 import { GoogleFontsModal } from "../components/GoogleFontsModal";
+import { EdgeExtensionModal } from "../components/EdgeExtensionModal";
 import { ScreenCaptureModal } from "../components/ScreenCaptureModal";
 import { ScreenCaptureButton } from "../components/ScreenCaptureButton";
 import { AreaSelectorOverlay } from "../components/AreaSelectorOverlay";
@@ -114,6 +116,7 @@ export function Home() {
   const [showShortcuts, setShowShortcuts] = useState(false);
   const [isDownloadOpen, setIsDownloadOpen] = useState(false);
   const [isFontsOpen, setIsFontsOpen] = useState(false);
+  const [isEdgeExtensionOpen, setIsEdgeExtensionOpen] = useState(false);
   const [previewCurrentPath, setPreviewCurrentPath] = useState<string>("/");
   const iframeRef = useRef<HTMLIFrameElement>(null);
   const monacoEditorRef = useRef<any>(null);
@@ -539,7 +542,7 @@ export function Home() {
           srcDoc={srcDoc}
           title="Preview"
           className="w-full h-full border-none"
-          sandbox="allow-scripts allow-modals allow-forms allow-popups"
+          sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"
         />
         <AreaSelectorOverlay
           isActive={isCapturingArea}
@@ -610,7 +613,7 @@ export function Home() {
                     ? "rounded-[1.2rem]"
                     : ""
               }`}
-              sandbox="allow-scripts allow-modals allow-forms allow-popups"
+              sandbox="allow-scripts allow-modals allow-forms allow-popups allow-same-origin"
             />
             <AreaSelectorOverlay
               isActive={isCapturingArea}
@@ -971,6 +974,23 @@ export function Home() {
               <span>Fonts</span>
             </Button>
 
+            <Tooltip>
+              <TooltipTrigger
+                render={
+                  <Button
+                    id="open-edge-extension-header-btn"
+                    variant="outline"
+                    className="h-8 rounded-md px-3 shadow-sm hover:shadow-md transition-all text-xs bg-cyan-950/40 border-cyan-500/40 text-cyan-300 hover:text-white hover:bg-cyan-900/50 gap-1.5 font-medium cursor-pointer"
+                    onClick={() => setIsEdgeExtensionOpen(true)}
+                  >
+                    <Package size={13} className="text-cyan-400" />
+                    <span>Extensão Edge (.ZIP)</span>
+                  </Button>
+                }
+              />
+              <TooltipContent>Descarregar Extensão Side Panel para Microsoft Edge (.ZIP)</TooltipContent>
+            </Tooltip>
+
             <Button
               variant="outline"
               className="h-8 rounded-md px-3 shadow-sm hover:shadow-md transition-all text-xs bg-zinc-900 border-zinc-800 text-zinc-200 hover:text-white hover:bg-zinc-800 gap-1.5"
@@ -1061,6 +1081,10 @@ export function Home() {
             updateCode(`${linkTag}\n${code}`);
           }
         }}
+      />
+      <EdgeExtensionModal
+        isOpen={isEdgeExtensionOpen}
+        onClose={() => setIsEdgeExtensionOpen(false)}
       />
       <ScreenCaptureModal
         isOpen={captureModalOpen}

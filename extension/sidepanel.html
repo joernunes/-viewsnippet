@@ -1,0 +1,714 @@
+<!DOCTYPE html>
+<html lang="pt">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Edge Web Inspector</title>
+  <link rel="stylesheet" href="sidepanel.css">
+</head>
+<body class="theme-dark">
+  <div class="app-container">
+    <!-- Top Header with Active Site Detection -->
+    <header class="header">
+      <div class="header-left">
+        <div class="logo-icon">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="11" cy="11" r="8"></circle>
+            <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+            <circle cx="11" cy="11" r="3" fill="#06b6d4"></circle>
+          </svg>
+        </div>
+        <div class="header-info">
+          <div class="app-title-row">
+            <span class="app-title">Edge Inspector</span>
+            <span class="site-badge" id="currentSiteBadge">Site Ativo</span>
+          </div>
+          <span class="page-indicator" id="pageTitle" title="Conectando à página...">Conectando...</span>
+        </div>
+      </div>
+
+      <div class="header-actions">
+        <button id="inspectBtn" class="btn-inspect" title="Ativar inspeção na página (Ctrl+Shift+X)">
+          <svg class="inspect-icon" width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+            <line x1="12" y1="2" x2="12" y2="6"></line>
+            <line x1="12" y1="18" x2="12" y2="22"></line>
+            <line x1="2" y1="12" x2="6" y2="12"></line>
+            <line x1="18" y1="12" x2="22" y2="12"></line>
+          </svg>
+          <span id="inspectBtnText">Inspecionar</span>
+        </button>
+
+        <button id="deselectHeaderBtn" class="btn-icon" title="Desmarcar / Reiniciar seleções (Esc)">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="15" y1="9" x2="9" y2="15"></line>
+            <line x1="9" y1="9" x2="15" y2="15"></line>
+          </svg>
+        </button>
+
+        <button id="refreshBtn" class="btn-icon" title="Sincronizar com a página ativa">
+          <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+            <path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/>
+          </svg>
+        </button>
+      </div>
+    </header>
+
+    <!-- Navigation Tabs with Pure SVG Icons -->
+    <div class="nav-tabs-wrapper">
+      <nav class="nav-tabs">
+        <button class="nav-tab active" data-tab="tab-element">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="3" x2="9" y2="21"/></svg>
+          <span>Elemento</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-custom-css">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+          <span>CSS Ao Vivo</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-assets">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+          <span>Assets</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-capture">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+          <span>Capturas</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-tools">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          <span>Ferramentas</span>
+        </button>
+        <button class="nav-tab" data-tab="tab-sandbox">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+          <span>Sandbox</span>
+        </button>
+      </nav>
+    </div>
+
+    <!-- Tab Content 1: Element Inspector -->
+    <main class="tab-pane active" id="tab-element">
+      <!-- Empty State -->
+      <div id="emptyState" class="empty-state">
+        <div class="empty-icon">
+          <svg width="26" height="26" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8">
+            <circle cx="12" cy="12" r="10"></circle>
+            <circle cx="12" cy="12" r="3"></circle>
+            <line x1="12" y1="2" x2="12" y2="5"></line>
+            <line x1="12" y1="19" x2="12" y2="22"></line>
+            <line x1="2" y1="12" x2="5" y2="12"></line>
+            <line x1="19" y1="12" x2="22" y2="12"></line>
+          </svg>
+        </div>
+        <h3>Nenhum elemento selecionado</h3>
+        <p>Clique em <strong>Inspecionar</strong> e passe o mouse sobre qualquer elemento na página aberta para carregar seus estilos e propriedades.</p>
+        <button id="emptyInspectBtn" class="btn-primary">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><circle cx="12" cy="12" r="3"/></svg>
+          Iniciar Inspeção
+        </button>
+      </div>
+
+      <!-- Element Details View -->
+      <div id="elementDetails" class="element-details" style="display: none;">
+        <!-- Hierarchy Breadcrumb -->
+        <div class="breadcrumb-container" id="domHierarchy"></div>
+
+        <!-- Tag & Selector Summary Card -->
+        <div class="card">
+          <div class="element-header-row">
+            <div class="element-title-badge">
+              <span class="tag-badge" id="elemTag">div</span>
+              <span class="id-badge" id="elemId"></span>
+            </div>
+            <div style="display: flex; align-items: center; gap: 6px;">
+              <div class="dimensions-badge" id="elemDimensions">320 × 180 px</div>
+              <button class="btn-icon" id="deselectElemBtn" title="Desmarcar / Remover seleção do elemento" style="width: 22px; height: 22px; color: var(--text-muted);">
+                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+              </button>
+            </div>
+          </div>
+          <div class="classes-row" id="elemClasses"></div>
+          
+          <!-- Quick Action Buttons -->
+          <div class="action-buttons-grid">
+            <button class="action-btn" id="copySelectorBtn" title="Copiar seletor CSS">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Seletor</span>
+            </button>
+            <button class="action-btn" id="copyXPathBtn" title="Copiar XPath">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+              <span>XPath</span>
+            </button>
+            <button class="action-btn" id="copyHtmlBtn" title="Copiar HTML Externo">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              <span>HTML</span>
+            </button>
+            <button class="action-btn" id="hideElemBtn" title="Ocultar/Mostrar na página">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17.94 17.94A10.07 10.07 0 0 1 12 20c-7 0-11-8-11-8a18.45 18.45 0 0 1 5.06-5.94M9.9 4.24A9.12 9.12 0 0 1 12 4c7 0 11 8 11 8a18.5 18.5 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 1-4.24-4.24"/><line x1="1" y1="1" x2="23" y2="23"/></svg>
+              <span>Ocultar</span>
+            </button>
+            <button class="action-btn" id="scrollElemBtn" title="Rolar página até elemento">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><polyline points="8 12 12 16 16 12"/><line x1="12" y1="8" x2="12" y2="16"/></svg>
+              <span>Focar</span>
+            </button>
+            <button class="action-btn" id="deselectElemBtn2" title="Desmarcar / Remover seleção">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>
+              <span>Desmarcar</span>
+            </button>
+            <button class="action-btn danger" id="deleteElemBtn" title="Deletar elemento da página">
+              <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+              <span>Remover</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Live Content Editing & Visual Builder Suite -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon" style="color: #06b6d4;">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"/><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"/></svg>
+              </span>
+              <span>Edição de Conteúdo & Mockup (Ao Vivo)</span>
+            </div>
+            <span id="contentEditStatusBadge" class="badge-count" style="display: none; background: rgba(6, 182, 212, 0.2); color: #22d3ee; border: 1px solid #06b6d4;">✏️ Editando</span>
+          </div>
+
+          <div class="builder-actions-grid">
+            <button class="builder-btn" id="toggleEditContentBtn" title="Ativar edição direta de texto no elemento (contentEditable)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              <span id="editContentBtnText">Editar Texto</span>
+            </button>
+
+            <button class="builder-btn" id="duplicateElemBtn" title="Duplicar este elemento na página">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              <span>Duplicar</span>
+            </button>
+
+            <button class="builder-btn" id="moveElemUpBtn" title="Mover elemento para cima na hierarquia">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="19" x2="12" y2="5"/><polyline points="5 12 12 5 19 12"/></svg>
+              <span>Mover Cima</span>
+            </button>
+
+            <button class="builder-btn" id="moveElemDownBtn" title="Mover elemento para baixo na hierarquia">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="12" y1="5" x2="12" y2="19"/><polyline points="19 12 12 19 5 12"/></svg>
+              <span>Mover Baixo</span>
+            </button>
+
+            <button class="builder-btn" id="replaceImageBtn" title="Substituir imagem (URL ou upload local)">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+              <span>Trocar Imagem</span>
+            </button>
+
+            <button class="builder-btn mockup-btn" id="quickMockupScreenshotBtn" title="Tirar screenshot deste mockup agora">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+              <span>Capturar Mockup</span>
+            </button>
+          </div>
+
+          <!-- Image Replacer Sub-Panel -->
+          <div id="imageReplacerPanel" class="image-replacer-box" style="display: none;">
+            <div class="replacer-title-row">
+              <span>Substituir Imagem do Elemento</span>
+              <button class="btn-icon" id="closeImageReplacerBtn" style="width: 18px; height: 18px;">✕</button>
+            </div>
+            <div style="display: flex; flex-direction: column; gap: 6px; margin-top: 6px;">
+              <input type="text" id="imageReplacerUrlInput" class="input-compact" placeholder="Cole a URL da imagem (https://...)">
+              <div style="display: flex; align-items: center; gap: 6px;">
+                <label class="btn-secondary btn-xs" style="flex: 1; text-align: center; cursor: pointer; display: flex; align-items: center; justify-content: center; gap: 4px;">
+                  📁 Carregar Imagem
+                  <input type="file" id="imageReplacerFileInput" accept="image/*" style="display: none;">
+                </label>
+                <button id="applyImageUrlBtn" class="btn-primary btn-xs">Aplicar</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Live Style Tweaker -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+              </span>
+              <span>Edição Rápida de Estilos (Ao Vivo)</span>
+            </div>
+          </div>
+          <div class="tweaker-grid">
+            <div class="tweaker-field">
+              <label>Cor do Texto</label>
+              <div class="color-picker-wrapper">
+                <input type="color" id="tweakColorInput" value="#ffffff">
+                <span id="tweakColorVal" class="mono-val">#ffffff</span>
+              </div>
+            </div>
+            <div class="tweaker-field">
+              <label>Cor de Fundo</label>
+              <div class="color-picker-wrapper">
+                <input type="color" id="tweakBgInput" value="#000000">
+                <span id="tweakBgVal" class="mono-val">#000000</span>
+              </div>
+            </div>
+            <div class="tweaker-field">
+              <label>Tamanho da Fonte</label>
+              <input type="text" id="tweakFontSize" class="input-compact" placeholder="ex: 16px">
+            </div>
+            <div class="tweaker-field">
+              <label>Border Radius</label>
+              <input type="text" id="tweakBorderRadius" class="input-compact" placeholder="ex: 8px">
+            </div>
+            <div class="tweaker-field">
+              <label>Display</label>
+              <select id="tweakDisplay" class="select-compact">
+                <option value="">Não alterado</option>
+                <option value="flex">flex</option>
+                <option value="grid">grid</option>
+                <option value="block">block</option>
+                <option value="inline-block">inline-block</option>
+                <option value="none">none</option>
+              </select>
+            </div>
+            <div class="tweaker-field">
+              <label>Opacidade</label>
+              <input type="range" id="tweakOpacity" min="0" max="1" step="0.05" value="1" class="range-compact">
+            </div>
+          </div>
+        </div>
+
+        <!-- Box Model Visualizer -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><rect x="7" y="7" width="10" height="10" rx="1"/></svg>
+              </span>
+              <span>Box Model (px)</span>
+            </div>
+          </div>
+          <div class="box-model-container">
+            <div class="bm-box bm-margin">
+              <span class="bm-label">margin</span>
+              <span class="bm-val bm-top" id="bmMarginTop">0</span>
+              <span class="bm-val bm-right" id="bmMarginRight">0</span>
+              <span class="bm-val bm-bottom" id="bmMarginBottom">0</span>
+              <span class="bm-val bm-left" id="bmMarginLeft">0</span>
+              
+              <div class="bm-box bm-border">
+                <span class="bm-label">border</span>
+                <span class="bm-val bm-top" id="bmBorderTop">0</span>
+                <span class="bm-val bm-right" id="bmBorderRight">0</span>
+                <span class="bm-val bm-bottom" id="bmBorderBottom">0</span>
+                <span class="bm-val bm-left" id="bmBorderLeft">0</span>
+
+                <div class="bm-box bm-padding">
+                  <span class="bm-label">padding</span>
+                  <span class="bm-val bm-top" id="bmPaddingTop">0</span>
+                  <span class="bm-val bm-right" id="bmPaddingRight">0</span>
+                  <span class="bm-val bm-bottom" id="bmPaddingBottom">0</span>
+                  <span class="bm-val bm-left" id="bmPaddingLeft">0</span>
+
+                  <div class="bm-box bm-content">
+                    <span id="bmContentDim">320 × 180</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Contrast & Accessibility Ratio -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a10 10 0 0 0 0 20z"/></svg>
+              </span>
+              <span>Contraste & Acessibilidade</span>
+            </div>
+            <span class="badge-count" id="contrastRatioVal">Ratio: 0:1</span>
+          </div>
+          <div class="a11y-grid">
+            <div class="a11y-badge">
+              <span>WCAG AA (Normal):</span>
+              <span id="wcagAANormal" class="a11y-pass">PASS</span>
+            </div>
+            <div class="a11y-badge">
+              <span>WCAG AAA (Normal):</span>
+              <span id="wcagAAANormal" class="a11y-pass">PASS</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Code Exporter: Tailwind, React, CSS -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </span>
+              <span>Exportar Código</span>
+            </div>
+            <button class="btn-xs" id="copyExportCodeBtn">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+              Copiar
+            </button>
+          </div>
+          <div class="code-tabs">
+            <button class="code-tab-btn active" data-export="tailwind">Tailwind</button>
+            <button class="code-tab-btn" data-export="css">CSS</button>
+            <button class="code-tab-btn" data-export="react">React / JSX</button>
+          </div>
+          <pre class="code-preview" id="exportCodePreview"></pre>
+        </div>
+
+        <!-- Computed CSS Properties -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>
+              </span>
+              <span>Computed CSS</span>
+            </div>
+            <input type="text" id="filterStylesInput" class="filter-input" placeholder="Filtrar...">
+          </div>
+          <div class="styles-table-container">
+            <table class="styles-table" id="computedStylesTable">
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+
+        <!-- HTML Source Code View -->
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title-group">
+              <span class="card-icon">
+                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="16 18 22 12 16 6"/><polyline points="8 6 2 12 8 18"/></svg>
+              </span>
+              <span>Outer HTML</span>
+            </div>
+            <button class="btn-xs" id="sendToSandboxBtn">Abrir no Sandbox</button>
+          </div>
+          <pre class="code-preview" id="elemOuterHtml"></pre>
+        </div>
+      </div>
+    </main>
+
+    <!-- Tab Content: Custom CSS Injection & Live Preview -->
+    <section class="tab-pane" id="tab-custom-css">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon" style="color: #06b6d4;">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/></svg>
+            </span>
+            <span>Injeção de CSS em Tempo Real</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <label class="switch" title="Ativar ou desativar injeção de CSS na página">
+              <input type="checkbox" id="toggleCustomCss" checked>
+              <span class="slider"></span>
+            </label>
+          </div>
+        </div>
+
+        <div class="css-meta-bar">
+          <div class="css-meta-site">
+            <span class="site-dot"></span>
+            <span id="customCssHostname" style="font-family: var(--font-mono); font-weight: 600; color: #38bdf8;">local</span>
+            <span class="css-sync-tag">⚡ Salvo por domínio</span>
+          </div>
+          <label class="important-toggle" title="Adicionar ou forçar !important nas regras">
+            <input type="checkbox" id="forceImportantToggle">
+            <span>Forçar !important</span>
+          </label>
+        </div>
+
+        <!-- CSS Snippets Bar -->
+        <div class="css-snippets-bar">
+          <span class="snippets-label">Snippets Rápidos:</span>
+          <div class="snippets-scroll">
+            <button class="snippet-chip" data-snippet="darkmode">🌙 Dark Mode</button>
+            <button class="snippet-chip" data-snippet="hideads">🚫 Ocultar Banners</button>
+            <button class="snippet-chip" data-snippet="modernfont">🔤 Fonte Inter</button>
+            <button class="snippet-chip" data-snippet="accentcolor">🎨 Cor Destaque</button>
+            <button class="snippet-chip" data-snippet="glassmorphism">✨ Efeito Glass</button>
+            <button class="snippet-chip" data-snippet="smoothscroll">🌊 Scroll Suave</button>
+          </div>
+        </div>
+
+        <!-- CSS Code Editor with Line Numbers -->
+        <div class="css-editor-container">
+          <div class="css-editor-header">
+            <div class="editor-status">
+              <span id="cssLengthCounter">0 caracteres</span>
+              <span class="editor-dot">•</span>
+              <span id="cssDebounceStatus" style="color: #22c55e;">Sincronizado</span>
+            </div>
+            <div class="editor-tools">
+              <button id="formatCssBtn" class="btn-xs" title="Formatar regras CSS">Formatar</button>
+              <button id="clearCustomCssBtn" class="btn-xs danger" title="Limpar CSS deste domínio">Limpar</button>
+            </div>
+          </div>
+          <div class="css-textarea-wrapper">
+            <div class="css-line-numbers" id="cssLineNumbers">1</div>
+            <textarea id="customCssCode" class="css-textarea" placeholder="/* Digite ou cole suas regras CSS personalizadas aqui...
+As alterações são injetadas em tempo real na página e salvas por domínio! */
+
+body {
+  /* Exemplo: */
+}
+" spellcheck="false"></textarea>
+          </div>
+        </div>
+
+        <!-- Actions: Copy & Export .css file -->
+        <div class="css-export-actions">
+          <button id="copyCustomCssBtn" class="btn-secondary btn-sm" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+            Copiar CSS
+          </button>
+          <button id="downloadCustomCssBtn" class="btn-primary btn-sm" style="flex: 1; display: flex; align-items: center; justify-content: center; gap: 4px;">
+            <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Exportar .css
+          </button>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Content 2: Site Assets -->
+    <section class="tab-pane" id="tab-assets">
+      <div class="assets-header">
+        <span class="card-title-group">
+          <span class="card-icon">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 2a14.5 14.5 0 0 0 0 20 14.5 14.5 0 0 0 0-20"/><path d="M2 12h20"/></svg>
+          </span>
+          <span>Recursos Globais</span>
+        </span>
+        <button id="reloadAssetsBtn" class="btn-secondary btn-sm">
+          <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.57-8.38l5.67-5.67"/></svg>
+          Escanear
+        </button>
+      </div>
+
+      <!-- Color Palette -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="13.5" cy="6.5" r=".5" fill="currentColor"/><circle cx="17.5" cy="10.5" r=".5" fill="currentColor"/><circle cx="8.5" cy="7.5" r=".5" fill="currentColor"/><circle cx="6.5" cy="12.5" r=".5" fill="currentColor"/><path d="M12 2C6.5 2 2 6.5 2 12s4.5 10 10 10c.926 0 1.648-.746 1.648-1.688 0-.437-.18-.835-.437-1.125-.29-.289-.438-.652-.438-1.125a1.64 1.64 0 0 1 1.668-1.668h1.996c3.051 0 5.563-2.512 5.563-5.563C22 6.5 17.5 2 12 2z"/></svg>
+            </span>
+            <span>Paleta de Cores</span>
+          </div>
+          <span class="badge-count" id="colorCount">0</span>
+        </div>
+        <div class="color-palette-grid" id="colorPaletteGrid">
+          <div class="loading-state" style="padding: 10px; color: var(--text-muted); font-size: 10px;">Clique em "Escanear" para extrair as cores.</div>
+        </div>
+      </div>
+
+      <!-- Typography & Fonts -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="4 7 4 4 20 4 20 7"/><line x1="9" y1="20" x2="15" y2="20"/><line x1="12" y1="4" x2="12" y2="20"/></svg>
+            </span>
+            <span>Tipografia Utilizada</span>
+          </div>
+          <span class="badge-count" id="fontCount">0</span>
+        </div>
+        <div class="fonts-list" id="fontsList"></div>
+      </div>
+
+      <!-- Page Headings SEO Outline -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>
+            </span>
+            <span>Estrutura de Títulos (H1-H6)</span>
+          </div>
+          <span class="badge-count" id="headingsCount">0</span>
+        </div>
+        <div class="headings-list" id="headingsList"></div>
+      </div>
+
+      <!-- Images & Assets -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"/><circle cx="8.5" cy="8.5" r="1.5"/><polyline points="21 15 16 10 5 21"/></svg>
+            </span>
+            <span>Imagens da Página</span>
+          </div>
+          <div style="display: flex; align-items: center; gap: 6px;">
+            <span class="badge-count" id="imageCount">0</span>
+            <button id="downloadAllImagesBtn" class="btn-xs" style="display: flex; align-items: center; gap: 3px; background: #0284c7; color: #ffffff; border: none; padding: 2px 6px; border-radius: 4px; font-weight: 500;" title="Baixar todas as imagens encontradas">
+              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+              Baixar Todas
+            </button>
+          </div>
+        </div>
+        <div class="images-grid" id="imagesGrid"></div>
+      </div>
+    </section>
+
+    <!-- Tab Content 3: Screen Capture (3 Modes: Tab, Area, Element) -->
+    <section class="tab-pane" id="tab-capture">
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/><circle cx="12" cy="13" r="4"/></svg>
+            </span>
+            <span>Captura de Ecrã no Edge</span>
+          </div>
+        </div>
+
+        <div class="capture-mode-grid">
+          <button id="captureTabBtn" class="capture-mode-btn active" title="Capturar toda a janela visível">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            <span>Janela Visível</span>
+          </button>
+
+          <button id="captureAreaBtn" class="capture-mode-btn" title="Arrastar retângulo na página para recortar área">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 7V5a2 2 0 0 1 2-2h2"/><path d="M17 3h2a2 2 0 0 1 2 2v2"/><path d="M21 17v2a2 2 0 0 1-2 2h-2"/><path d="M7 21H5a2 2 0 0 1-2-2v-2"/></svg>
+            <span>Recortar Área</span>
+          </button>
+
+          <button id="captureSectionBtn" class="capture-mode-btn" title="Capturar bloco container (section, div, main, article) do elemento">
+            <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M3 9h18"/><path d="M9 21V9"/></svg>
+            <span>Section / Div</span>
+          </button>
+        </div>
+
+        <div id="capturePreviewContainer" class="capture-preview-box" style="display: none;">
+          <img id="capturePreviewImg" src="" alt="Screenshot" class="capture-img">
+          <div class="capture-meta">
+            <span id="captureMetaText">PNG • Resolução Nativa</span>
+            <div class="capture-btn-group">
+              <a id="downloadCaptureLink" class="btn-secondary btn-sm" download="edge-screenshot.png">Descarregar</a>
+              <button id="copyCaptureBtn" class="btn-secondary btn-sm">Copiar</button>
+              <button id="clearCaptureBtn" class="btn-secondary btn-sm danger" title="Remover esta captura de imagem">
+                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>
+                Remover
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Content 4: Advanced Tools -->
+    <section class="tab-pane" id="tab-tools">
+      <!-- Visual Helpers -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z"/></svg>
+            </span>
+            <span>Auxiliares Visuais na Página</span>
+          </div>
+        </div>
+
+        <div class="tool-row">
+          <div class="tool-info">
+            <span class="tool-name">Modo Design Global (designMode)</span>
+            <span class="tool-desc">Torna todo texto da página livremente editável com 1 clique</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleGlobalDesignMode">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="tool-row">
+          <div class="tool-info">
+            <span class="tool-name">Linhas de Contorno (Outlines)</span>
+            <span class="tool-desc">Exibe bordas em todos os nós DOM</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleGridOutlines">
+            <span class="slider"></span>
+          </label>
+        </div>
+
+        <div class="tool-row">
+          <div class="tool-info">
+            <span class="tool-name">Grade Base (8px Baseline)</span>
+            <span class="tool-desc">Grade de alinhamento vertical</span>
+          </div>
+          <label class="switch">
+            <input type="checkbox" id="toggleBaselineGrid">
+            <span class="slider"></span>
+          </label>
+        </div>
+      </div>
+
+      <!-- DOM & Performance Diagnostics -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 12h-4l-3 9L9 3l-3 9H2"/></svg>
+            </span>
+            <span>Diagnósticos da Página</span>
+          </div>
+          <button id="refreshDiagBtn" class="btn-xs">Atualizar</button>
+        </div>
+        <div class="styles-table-container">
+          <table class="styles-table" id="diagTable">
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Storage & Cookies Inspector for Current Domain -->
+      <div class="card">
+        <div class="card-header">
+          <div class="card-title-group">
+            <span class="card-icon">
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/><path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/></svg>
+            </span>
+            <span>Armazenamento do Site</span>
+          </div>
+          <button id="refreshStorageBtn" class="btn-xs">Ler Storage</button>
+        </div>
+        <div class="storage-table-container">
+          <table class="styles-table" id="storageTable">
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- Tab Content 5: Sandbox -->
+    <section class="tab-pane" id="tab-sandbox">
+      <div class="sandbox-container">
+        <div class="sandbox-toolbar">
+          <span class="sandbox-title">HTML/CSS Sandbox</span>
+          <button id="runSandboxBtn" class="btn-primary btn-sm">Executar</button>
+        </div>
+        <div class="sandbox-editor-wrapper">
+          <textarea id="sandboxCode" class="sandbox-textarea" placeholder="Cole ou edite HTML aqui..."></textarea>
+        </div>
+        <div class="sandbox-preview-wrapper">
+          <div class="sandbox-preview-header">Pré-visualização Isolada</div>
+          <iframe id="sandboxFrame" class="sandbox-iframe" sandbox="allow-scripts allow-same-origin"></iframe>
+        </div>
+      </div>
+    </section>
+
+    <!-- Toast Notification -->
+    <div id="toast" class="toast">Notificação</div>
+  </div>
+
+  <script src="sidepanel.js"></script>
+</body>
+</html>

@@ -12,10 +12,13 @@ import {
   Sparkles,
   Layers,
   Code2,
+  Package,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
 import { Label } from "./ui/label";
+import { downloadExtensionZip } from "../lib/extensionZip";
+import { toast } from "sonner";
 
 interface DownloadModalProps {
   isOpen: boolean;
@@ -333,6 +336,34 @@ ${code}
                 </div>
                 <p className="text-[10px] text-zinc-400 mt-0.5">
                   Includes HTML, CSS, JS and README documentation
+                </p>
+              </div>
+            </button>
+
+            {/* Edge Extension ZIP */}
+            <button
+              onClick={async () => {
+                try {
+                  await downloadExtensionZip();
+                  toast.success("Download da Extensão Microsoft Edge (.ZIP) iniciado!");
+                } catch (e) {
+                  toast.error("Erro ao descarregar extensão.");
+                }
+              }}
+              className="sm:col-span-2 flex items-start gap-3 p-3 rounded-xl bg-cyan-950/20 border border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-900/30 transition-all text-left group cursor-pointer"
+            >
+              <div className="w-8 h-8 rounded-lg bg-cyan-500/10 border border-cyan-500/30 text-cyan-400 flex items-center justify-center shrink-0 group-hover:scale-105 transition-transform">
+                <Package size={16} />
+              </div>
+              <div className="flex-1">
+                <div className="text-xs font-semibold text-zinc-200 group-hover:text-cyan-300 flex items-center gap-1.5">
+                  <span>Extensão Microsoft Edge Side Panel (.ZIP)</span>
+                  <span className="text-[9px] font-mono px-1.5 py-0.2 rounded bg-cyan-500/20 text-cyan-300 border border-cyan-500/30">
+                    Manifest V3
+                  </span>
+                </div>
+                <p className="text-[10px] text-zinc-400 mt-0.5">
+                  Pacote completo da extensão para inspecionar e editar elementos em qualquer site web no painel lateral do Edge.
                 </p>
               </div>
             </button>

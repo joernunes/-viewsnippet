@@ -1,6 +1,7 @@
 import express from "express";
 import { createServer as createViteServer } from "vite";
 import path from "path";
+import fs from "fs";
 import Database from "better-sqlite3";
 import { nanoid } from "nanoid";
 import bcrypt from "bcryptjs";
@@ -81,6 +82,16 @@ async function startServer() {
       res.status(500).json({
         error: "Não foi possível carregar a URL fornecida: " + (error.message || "Erro de conexão"),
       });
+    }
+  });
+
+  // Download extension zip endpoint
+  app.get("/api/download-extension-zip", (req, res) => {
+    const zipPath = path.join(process.cwd(), "edge-sidepanel-inspector-extension.zip");
+    if (fs.existsSync(zipPath)) {
+      res.download(zipPath, "edge-sidepanel-inspector-extension.zip");
+    } else {
+      res.status(404).json({ error: "Ficheiro zip da extensão não encontrado. Por favor compile a extensão." });
     }
   });
 

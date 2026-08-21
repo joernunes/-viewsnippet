@@ -11,6 +11,7 @@ import {
   Sparkles,
   FileImage,
   Layers,
+  Trash2,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { toast } from "sonner";
@@ -149,6 +150,20 @@ export function ScreenCaptureModal({
 
           {/* Right Action buttons */}
           <div className="flex items-center gap-2.5">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                onClose();
+                toast.info("Captura descartada / removida.");
+              }}
+              className="bg-zinc-800 hover:bg-red-950/60 hover:text-red-300 border-zinc-700 text-zinc-300 text-xs h-9 gap-1.5 rounded-xl"
+              title="Remover e descartar imagem capturada"
+            >
+              <Trash2 size={14} className="text-zinc-400 hover:text-red-400" />
+              Remover
+            </Button>
+
             <Button
               variant="outline"
               size="sm"

@@ -42,6 +42,7 @@ import {
   Layers as LayersIcon,
   Globe,
   Loader2,
+  XCircle,
 } from "lucide-react";
 import { Button } from "./ui/button";
 import { Input } from "./ui/input";
@@ -122,6 +123,13 @@ interface ElementInspectorProps {
 export const INSPECTOR_INJECT_SCRIPT = `
 <script id="dom-inspector-script">
 (function() {
+  window.addEventListener('error', function(e) {
+    if (e && e.message && (e.message.indexOf('ResizeObserver') !== -1 || e.message.indexOf('Script error') !== -1)) {
+      e.stopImmediatePropagation();
+      e.preventDefault();
+    }
+  });
+
   let isInspectMode = true;
   let hoverOverlay = null;
   let selectedOverlay = null;
@@ -132,11 +140,11 @@ export const INSPECTOR_INJECT_SCRIPT = `
     if (!document.getElementById('inspector-hover-overlay')) {
       hoverOverlay = document.createElement('div');
       hoverOverlay.id = 'inspector-hover-overlay';
-      hoverOverlay.style.cssText = 'position:fixed; pointer-events:none; border:2px dashed #3b82f6; background:rgba(59,130,246,0.12); z-index:999999; display:none; transition:all 0.05s ease; border-radius:3px;';
+      hoverOverlay.style.cssText = 'position:fixed; pointer-events:none; border:1.5px solid #1a73e8; background:transparent; z-index:999999; display:none; transition:all 0.04s ease; border-radius:2px; box-sizing:border-box;';
       
       const tooltip = document.createElement('div');
       tooltip.id = 'inspector-tooltip';
-      tooltip.style.cssText = 'position:absolute; top:-26px; left:0; background:#0f172a; color:#38bdf8; font-size:11px; font-family:monospace; font-weight:600; padding:2px 8px; border-radius:4px; border:1px solid #0284c7; white-space:nowrap; pointer-events:none; box-shadow:0 4px 6px -1px rgba(0,0,0,0.5);';
+      tooltip.style.cssText = 'position:absolute; top:-28px; left:0; background:#ffffff; color:#202124; font-size:11px; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; font-weight:500; padding:4px 8px; border-radius:4px; border:1px solid rgba(0,0,0,0.16); white-space:nowrap; pointer-events:none; box-shadow:0 3px 10px rgba(0,0,0,0.22); z-index:1000000;';
       hoverOverlay.appendChild(tooltip);
       document.body.appendChild(hoverOverlay);
     } else {
@@ -146,7 +154,7 @@ export const INSPECTOR_INJECT_SCRIPT = `
     if (!document.getElementById('inspector-selected-overlay')) {
       selectedOverlay = document.createElement('div');
       selectedOverlay.id = 'inspector-selected-overlay';
-      selectedOverlay.style.cssText = 'position:fixed; pointer-events:none; border:2px solid #10b981; background:rgba(16,185,129,0.12); z-index:999998; display:none; border-radius:3px; box-shadow:0 0 0 1px rgba(16,185,129,0.3);';
+      selectedOverlay.style.cssText = 'position:fixed; pointer-events:none; border:2px solid #1a73e8; background:transparent; z-index:999998; display:none; border-radius:2px; box-sizing:border-box;';
       document.body.appendChild(selectedOverlay);
     } else {
       selectedOverlay = document.getElementById('inspector-selected-overlay');
@@ -320,12 +328,17 @@ export const INSPECTOR_INJECT_SCRIPT = `
       e.stopImmediatePropagation();
     }
 
+    isInspectMode = false;
+    window.__isInspectMode = false;
+    unhighlightHover();
+
     selectedElement = target;
     highlightElement(target, false);
 
     const info = getElementInfo(target);
     if (info) {
       window.parent.postMessage({ type: 'INSPECTOR_ELEMENT_SELECTED', data: info }, '*');
+      window.parent.postMessage({ type: 'INSPECTOR_STOP_INSPECT' }, '*');
     }
   }
 
@@ -532,6 +545,10 @@ export const INSPECTOR_INJECT_SCRIPT = `
         }
         sendSerializedHtml();
       }
+    } else if (msg.type === 'DESELECT_ELEMENT') {
+      if (selectedOverlay) selectedOverlay.style.display = 'none';
+      if (hoverOverlay) hoverOverlay.style.display = 'none';
+      selectedElement = null;
     } else if (msg.type === 'GET_DOM_TREE') {
       sendDomTree();
     }
@@ -596,7 +613,7 @@ export function ElementInspector({
   // Resize and collapse panel states
   const [inspectorHeight, setInspectorHeight] = useState(280);
   const [isCollapsed, setIsCollapsed] = useState(false);
-  const [isHidden, setIsHidden] = useState(false);
+  const [isHidden, setIsHidden] = useState(true);
   const [isDragging, setIsDragging] = useState(false);
 
   useEffect(() => {
@@ -811,6 +828,8 @@ export function ElementInspector({
         } else {
           setActiveTab("styles"); // Switch to Box & CSS Styles editor
         }
+      } else if (data.type === "INSPECTOR_STOP_INSPECT") {
+        setIsInspectMode(false);
       } else if (data.type === "INSPECTOR_HTML_UPDATED") {
         if (!readOnly && onCodeChange && data.html && !externalSiteUrl) {
           updateCodeWithNewBodyHtml(data.html);
@@ -963,6 +982,12 @@ export function ElementInspector({
       name,
       value: null,
     });
+  };
+
+  const handleDeselect = () => {
+    setSelectedElement(null);
+    sendIframeMessage({ type: "DESELECT_ELEMENT" });
+    toast.info("Elemento desmarcado.");
   };
 
   const handleDeleteElement = () => {
@@ -1250,6 +1275,15 @@ export function ElementInspector({
         <div className="flex items-center gap-1 border-l border-zinc-800/80 pl-2 shrink-0">
           {selectedElement && (
             <>
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-6 w-6 rounded text-zinc-400 hover:text-amber-400 hover:bg-amber-950/40"
+                onClick={handleDeselect}
+                title="Desmarcar / Cancelar seleção"
+              >
+                <XCircle size={12} />
+              </Button>
               <Button
                 variant="ghost"
                 size="icon"
